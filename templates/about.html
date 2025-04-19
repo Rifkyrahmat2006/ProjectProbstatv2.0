@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>About</h5>
+        </div>
+        <div class="card-body">
+            <h4>Analisis Statistik OSN</h4>
+            <p>Aplikasi ini dibuat untuk menganalisis data statistik hasil Olimpiade Sains Nasional (OSN) dari berbagai bidang.</p>
+            
+            <h5 class="mt-4">Fitur Utama:</h5>
+            <ul>
+                <li>Analisis data statistik untuk setiap bidang OSN</li>
+                <li>Visualisasi data dalam bentuk berbagai grafik</li>
+                <li>Perbandingan statistik antar bidang</li>
+                <li>Pengelolaan data peserta</li>
+            </ul>
+            
+            <h5 class="mt-4">Analisis yang Tersedia:</h5>
+            <ul>
+                <li>Statistik dasar (mean, median, modus, dll)</li>
+                <li>Distribusi frekuensi</li>
+                <li>Visualisasi data:
+                    <ul>
+                        <li>Stem and Leaf Plot</li>
+                        <li>Histogram</li>
+                        <li>Box Plot</li>
+                        <li>Radar Chart (untuk perbandingan)</li>
+                    </ul>
+                </li>
+            </ul>
+            
+            <h5 class="mt-4">Pengembang:</h5>
+            <p>Aplikasi ini dikembangkan sebagai bagian dari proyek Probabilitas dan Statistika.</p>
+        </div>
+    </div>
+</div>
+{% endblock %} 

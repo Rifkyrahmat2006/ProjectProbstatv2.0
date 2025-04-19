@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Statistical Comparison</h2>
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <canvas id="radarChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('radarChart').getContext('2d');
+    const chartData = {
+        labels: JSON.parse('{{ radar_labels|tojson|safe }}'),
+        datasets: JSON.parse('{{ radar_datasets|tojson|safe }}')
+    };
+    
+    const radarChart = new Chart(ctx, {
+        type: 'radar',
+        data: chartData,
+        options: {
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toFixed(2);
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'right'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: ${context.raw.toFixed(2)}`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %} 

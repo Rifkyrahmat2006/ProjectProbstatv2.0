@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Add Participant - {{ current_subject|capitalize }}</h2>
+    
+    <form method="POST" class="mt-4">
+        <div class="mb-3">
+            <label for="rank" class="form-label">Rank</label>
+            <input type="number" class="form-control" id="rank" name="rank" required>
+        </div>
+        
+        <div class="mb-3">
+            <label for="nama" class="form-label">Nama Peserta</label>
+            <input type="text" class="form-control" id="nama" name="nama" required>
+        </div>
+        
+        <div class="mb-3">
+            <label for="sekolah" class="form-label">Asal Sekolah</label>
+            <input type="text" class="form-control" id="sekolah" name="sekolah" required>
+        </div>
+        
+        <div class="mb-3">
+            <label for="provinsi" class="form-label">Provinsi</label>
+            <input type="text" class="form-control" id="provinsi" name="provinsi" required>
+        </div>
+        
+        <div class="mb-3">
+            <label for="nilai" class="form-label">Nilai</label>
+            <input type="text" class="form-control" id="nilai" name="nilai" required>
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Add Participant</button>
+        <a href="{{ url_for('admin_dashboard', subject=current_subject) }}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %} 

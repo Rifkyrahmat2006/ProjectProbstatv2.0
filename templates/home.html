@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Pilih Bidang -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-book-open me-2"></i>Pilih Bidang</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-6">
+                    <select name="subject" class="form-select" onchange="this.form.submit()">
+                        {% for key, value in subjects.items() %}
+                        <option value="{{ key }}" {% if key == current_subject %}selected{% endif %}>
+                            {{ value }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search me-2"></i>Tampilkan Data
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">
+        <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
+    </div>
+    {% else %}
+    <!-- Tabel Data -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-table me-2"></i>Data Peserta {{ subjects[current_subject] }}</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-primary">
+                        <tr>
+                            <th>Rank</th>
+                            <th>Nama Peserta</th>
+                            <th>Asal Sekolah</th>
+                            <th>Provinsi</th>
+                            <th>Nilai</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in table_data %}
+                        <tr>
+                            <td>{{ row.rank }}</td>
+                            <td>{{ row.nama }}</td>
+                            <td>{{ row.sekolah }}</td>
+                            <td>{{ row.provinsi }}</td>
+                            <td>{{ "%.2f"|format(row.nilai) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deskripsi Statistik Data -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Deskripsi Statistik Data</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="mb-3">Data Set</h6>
+                    <p>Jumlah data: {{ statistics.n }}</p>
+                    <p>Data terurut: {{ statistics.sorted_data|join(', ') }}</p>
+                    
+                    <h6 class="mb-3">Statistik Dasar</h6>
+                    <ul class="list-group">
+                        <li class="list-group-item">Nilai Minimum: {{ "%.2f"|format(statistics.min) }}</li>
+                        <li class="list-group-item">Nilai Maksimum: {{ "%.2f"|format(statistics.max) }}</li>
+                        <li class="list-group-item">Range: {{ "%.2f"|format(statistics.max - statistics.min) }}</li>
+                        <li class="list-group-item">Mean: {{ "%.2f"|format(statistics.mean) }}</li>
+                        <li class="list-group-item">Median: {{ "%.2f"|format(statistics.median) }}</li>
+                        <li class="list-group-item">Standar Deviasi: {{ "%.2f"|format(statistics.std_dev) }}</li>
+                        <li class="list-group-item">Varians: {{ "%.2f"|format(statistics.std_dev ** 2) }}</li>
+                        <li class="list-group-item">Mid Range: {{ "%.2f"|format((statistics.max + statistics.min) / 2) }}</li>
+                        <li class="list-group-item">Modus: {{ "%.2f"|format(statistics.mode) }}</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="mb-3">Kuartil dan Range</h6>
+                    <ul class="list-group">
+                        <li class="list-group-item">Q1 (Kuartil 1): {{ "%.2f"|format(statistics.q1) }}</li>
+                        <li class="list-group-item">Q2 (Median): {{ "%.2f"|format(statistics.median) }}</li>
+                        <li class="list-group-item">Q3 (Kuartil 3): {{ "%.2f"|format(statistics.q3) }}</li>
+                        <li class="list-group-item">Interquartil Range (IQR): {{ "%.2f"|format(statistics.q3 - statistics.q1) }}</li>
+                    </ul>
+
+                    <h6 class="mb-3">Outliers</h6>
+                    {% set lower_bound = statistics.q1 - 1.5 * (statistics.q3 - statistics.q1) %}
+                    {% set upper_bound = statistics.q3 + 1.5 * (statistics.q3 - statistics.q1) %}
+                    <p>Batas bawah: {{ "%.2f"|format(lower_bound) }}</p>
+                    <p>Batas atas: {{ "%.2f"|format(upper_bound) }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Dalam Bentuk Diagram -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Data Dalam Bentuk Diagram</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">Stem and Leaf Plot</h6>
+                            <img src="data:image/png;base64,{{ stem_leaf_plot }}" class="img-fluid" alt="Stem and Leaf Plot">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">Histogram</h6>
+                            <img src="data:image/png;base64,{{ histogram }}" class="img-fluid" alt="Histogram">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">Box Plot</h6>
+                            <img src="data:image/png;base64,{{ box_plot }}" class="img-fluid" alt="Box Plot">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Penerapan Materi Probstat -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Penerapan Materi Probstat</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="mb-3">Distribusi Frekuensi</h6>
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-primary">
+                                <tr>
+                                    <th>Kelas</th>
+                                    <th>Frekuensi</th>
+                                    <th>Frekuensi Relatif (%)</th>
+                                    <th>Frekuensi Kumulatif</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for freq in statistics.frequency_distribution %}
+                                <tr>
+                                    <td>{{ freq.class_range }}</td>
+                                    <td>{{ freq.frequency }}</td>
+                                    <td>{{ "%.2f"|format(freq.relative_frequency) }}</td>
+                                    <td>{{ freq.cumulative_frequency }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kasus Penerapan Materi -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-question-circle me-2"></i>Kasus Penerapan Materi</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="mb-3">Diketahui:</h6>
+                    <ul class="list-group">
+                        <li class="list-group-item">Jumlah peserta: {{ statistics.n }}</li>
+                        <li class="list-group-item">Rata-rata nilai: {{ "%.2f"|format(statistics.mean) }}</li>
+                        <li class="list-group-item">Standar deviasi: {{ "%.2f"|format(statistics.std_dev) }}</li>
+                        <li class="list-group-item">Nilai minimum: {{ "%.2f"|format(statistics.min) }}</li>
+                        <li class="list-group-item">Nilai maksimum: {{ "%.2f"|format(statistics.max) }}</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="mb-3">Pertanyaan:</h6>
+                    <ol class="list-group">
+                        <li class="list-group-item">Berapa probabilitas peserta mendapatkan nilai di atas rata-rata?</li>
+                        <li class="list-group-item">Berapa probabilitas peserta mendapatkan nilai antara Q1 dan Q3?</li>
+                        <li class="list-group-item">Jika diambil sampel acak 5 peserta, berapa probabilitas minimal 3 peserta mendapatkan nilai di atas rata-rata?</li>
+                    </ol>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6 class="mb-3">Jawaban:</h6>
+                    <div class="card">
+                        <div class="card-body">
+                            <h6>1. Probabilitas nilai di atas rata-rata:</h6>
+                            <p>Menggunakan distribusi normal:</p>
+                            <p>P(X > μ) = 0.5 (50%)</p>
+                            
+                            <h6>2. Probabilitas nilai antara Q1 dan Q3:</h6>
+                            <p>Menggunakan IQR:</p>
+                            <p>P(Q1 < X < Q3) = 0.5 (50%)</p>
+                            
+                            <h6>3. Probabilitas minimal 3 peserta di atas rata-rata:</h6>
+                            <p>Menggunakan distribusi binomial:</p>
+                            <p>P(X ≥ 3) = Σ C(5,k) * (0.5)^k * (0.5)^(5-k) untuk k = 3,4,5</p>
+                            <p>P(X ≥ 3) = 0.5 (50%)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Portofolio Anggota Kelompok -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-users me-2"></i>Anggota Kelompok</h5>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-2 text-center">
+                    <div style="width: 150px; height: 150px; margin: 0 auto;">
+                        <img src="/static/foto/Rifky.jpg" class="rounded-circle img-fluid" style="width: 150px; height: 150px; object-fit: cover; aspect-ratio: 1/1;" alt="Rifky">
+                    </div>
+                </div>
+                <div class="col-md-10 d-flex align-items-center">
+                    <div>
+                        <h5>Rifky Dwi Rahmat Prakoso</h5>
+                        <p class="mb-2">NIM: H1D024001</p>
+                        <p class="mb-2">
+                            <i class="fab fa-instagram me-2"></i>
+                            <a href="https://instagram.com/rifky.prakoso_" target="_blank" class="text-decoration-none">@rifky.prakoso_</a>
+                        </p>
+                        <p class="fst-italic">"Kode boleh salah, semangat jangan patah."</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-2 text-center">
+                    <div style="width: 150px; height: 150px; margin: 0 auto;">
+                        <img src="/static/foto/Astria.jpg" class="rounded-circle img-fluid" style="width: 150px; height: 150px; object-fit: cover; aspect-ratio: 1/1;" alt="Astria">
+                    </div>
+                </div>
+                <div class="col-md-10 d-flex align-items-center">
+                    <div>
+                        <h5>Astria Dina Fitri</h5>
+                        <p class="mb-2">NIM: H1D024004</p>
+                        <p class="mb-2">
+                            <i class="fab fa-instagram me-2"></i>
+                            <a href="https://instagram.com/df.astriiaa" target="_blank" class="text-decoration-none">@df.astriiaa</a>
+                        </p>
+                        <p class="fst-italic">"hidup kadang kidding, dikit-dikit ngoding."</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-2 text-center">
+                    <div style="width: 150px; height: 150px; margin: 0 auto;">
+                        <img src="/static/foto/Wakhid.jpg" class="rounded-circle img-fluid" style="width: 150px; height: 150px; object-fit: cover; aspect-ratio: 1/1;" alt="Wakhid">
+                    </div>
+                </div>
+                <div class="col-md-10 d-flex align-items-center">
+                    <div>
+                        <h5>Wakhid Nugroho</h5>
+                        <p class="mb-2">NIM: H1D024003</p>
+                        <p class="mb-2">
+                            <i class="fab fa-instagram me-2"></i>
+                            <a href="https://instagram.com/wkhidngrh" target="_blank" class="text-decoration-none">@wkhidngrh</a>
+                        </p>
+                        <p class="fst-italic">"Jangan takut gagal, server down aja bisa di-restart"</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %} 
