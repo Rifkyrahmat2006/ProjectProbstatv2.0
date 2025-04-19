@@ -462,9 +462,12 @@ def compare():
     subjects_data = {}
     for subject in SUBJECTS:
         try:
-            data = read_csv_data(subject.lower())
-            subject_data = get_subject_data(data, subject)
-            stats = calculate_statistics(subject_data)
+            # Get data directly from Supabase
+            response = supabase.table('participants').select('*').eq('subject', subject.lower()).execute()
+            data = response.data
+            
+            # Calculate statistics
+            stats = calculate_statistics(data)
             subjects_data[subject] = stats
         except Exception as e:
             print(f"Error processing {subject}: {str(e)}")
