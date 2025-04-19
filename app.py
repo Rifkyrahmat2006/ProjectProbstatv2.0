@@ -289,7 +289,7 @@ def calculate_statistics(participants):
             'frequency_distribution': []
         }
     
-    # Extract scores
+    # Extract and sort scores
     scores = [float(p['score']) for p in participants]
     scores.sort()
     
@@ -299,19 +299,41 @@ def calculate_statistics(participants):
     max_score = max(scores)
     mean = sum(scores) / n
     
-    # Median and quartiles
-    median = np.median(scores)
-    q1 = np.percentile(scores, 25)
-    q3 = np.percentile(scores, 75)
+    # Median calculation
+    if n % 2 == 0:
+        median = (scores[n//2 - 1] + scores[n//2]) / 2
+    else:
+        median = scores[n//2]
     
-    # Standard deviation
-    std_dev = np.std(scores)
+    # Quartiles calculation
+    def get_quartile(sorted_data, q):
+        n = len(sorted_data)
+        pos = (n - 1) * q
+        floor = math.floor(pos)
+        ceil = math.ceil(pos)
+        
+        if floor == ceil:
+            return sorted_data[floor]
+        
+        d0 = sorted_data[floor] * (ceil - pos)
+        d1 = sorted_data[ceil] * (pos - floor)
+        return d0 + d1
     
-    # Mode
-    mode = max(set(scores), key=scores.count)
+    q1 = get_quartile(scores, 0.25)
+    q3 = get_quartile(scores, 0.75)
+    
+    # Standard deviation calculation
+    squared_diff_sum = sum((x - mean) ** 2 for x in scores)
+    std_dev = math.sqrt(squared_diff_sum / (n - 1) if n > 1 else 0)
+    
+    # Mode calculation
+    score_counts = {}
+    for score in scores:
+        score_counts[score] = score_counts.get(score, 0) + 1
+    mode = max(score_counts.items(), key=lambda x: x[1])[0]
     
     # Frequency distribution
-    bin_size = (max_score - min_score) / 5
+    bin_size = (max_score - min_score) / 5 if max_score != min_score else 1
     frequency_distribution = []
     cumulative_frequency = 0
     
@@ -320,7 +342,7 @@ def calculate_statistics(participants):
         end = start + bin_size
         frequency = len([s for s in scores if start <= s < end])
         cumulative_frequency += frequency
-        relative_frequency = (frequency / n) * 100
+        relative_frequency = (frequency / n) * 100 if n > 0 else 0
         
         frequency_distribution.append({
             'class_range': f"{start:.1f}-{end:.1f}",
@@ -329,17 +351,37 @@ def calculate_statistics(participants):
             'cumulative_frequency': cumulative_frequency
         })
     
+    # Calculate variance
+    variance = squared_diff_sum / (n - 1) if n > 1 else 0
+    
+    # Calculate mid-range
+    mid_range = (max_score + min_score) / 2
+    
+    # Calculate range
+    range_value = max_score - min_score
+    
+    # Calculate outliers
+    iqr = q3 - q1
+    lower_bound = q1 - (1.5 * iqr)
+    upper_bound = q3 + (1.5 * iqr)
+    outliers = [x for x in scores if x < lower_bound or x > upper_bound]
+    
     return {
         'n': n,
         'sorted_data': scores,
         'min': min_score,
         'max': max_score,
+        'range': range_value,
         'mean': mean,
         'median': median,
         'std_dev': std_dev,
+        'variance': variance,
         'q1': q1,
         'q3': q3,
         'mode': mode,
+        'mid_range': mid_range,
+        'iqr': iqr,
+        'outliers': outliers,
         'frequency_distribution': frequency_distribution
     }
 
@@ -664,5 +706,4 @@ def edit_subject(subject_key):
     return render_template('edit_subject.html', subject={'code': subject_key, 'name': SUBJECTS[subject_key]})
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port) 
+    app.run(debug=True) 

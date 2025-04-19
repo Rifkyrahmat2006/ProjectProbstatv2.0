@@ -1,71 +1,98 @@
-# Website Pengolahan Data Hasil Tryout SNBT
+# Website Pengolahan Data Hasil Olimpiade
+
+## Struktur Program
+
+```
+ProjectProbstatv2/
+│
+├── static/
+│   ├── css/
+│   │   └── style.css
+│   └── foto/
+│       └── [foto anggota tim]
+│
+├── templates/
+│   ├── about.html
+│   ├── admin_dashboard.html
+│   ├── base.html
+│   ├── compare.html
+│   ├── edit_participant.html
+│   ├── edit_subject.html
+│   ├── home.html
+│   └── login.html
+│
+├── app.py
+└── requirements.txt
+```
 
 ## Deskripsi Program
 
-Program ini merupakan website pengolahan data hasil tryout SNBT yang dibangun menggunakan Flask dan Supabase sebagai database. Website ini menampilkan berbagai analisis statistik dan visualisasi data untuk setiap bidang ujian.
+Program ini merupakan website pengolahan data hasil olimpiade yang dibangun menggunakan Flask dan Supabase sebagai database. Website ini menampilkan berbagai analisis statistik dan visualisasi data untuk setiap bidang olimpiade.
 
 ### Fitur Utama
 
-1. **Admin Dashboard**
-   - Manajemen data peserta (tambah, edit, hapus)
-   - Manajemen bidang (tambah, edit, hapus)
-   - Import data dari file CSV
-   - Pencarian dan filter data peserta
-
-2. **Visualisasi Data**
-   - Radar Chart
-   - Box Plot
-   - Histogram
-   - Stem and Leaf Plot
-   - Download statistik dalam format JSON
-
-3. **Analisis Statistik**
-   - Ukuran data (n)
-   - Data terurut
-   - Nilai minimum dan maksimum
-   - Mean (rata-rata)
-   - Median
-   - Standar deviasi
-   - Quartil (Q1, Q2, Q3)
-   - Modus
-   - Distribusi frekuensi
-
-4. **Fitur Keamanan**
+1. **Manajemen Admin**
    - Login admin
-   - CSRF protection
-   - Validasi input
+   - Manajemen bidang (tambah, edit, hapus)
+   - Import data dari CSV
+   - Manajemen peserta (tambah, edit, hapus)
+
+2. **Tabel Data**
+   - Menampilkan data peserta (Rank, Nama, Sekolah, Provinsi, Nilai)
+   - Pencarian dan filter data berdasarkan nama, sekolah, provinsi, dan bidang
+   - Pengurutan berdasarkan nilai
+
+3. **Deskripsi Statistik Data**
+   - Data Set (jumlah data dan data terurut)
+   - Nilai Minimum dan Maksimum
+   - Range
+   - Mean atau Rata-rata
+   - Median
+   - Standar Deviasi
+   - Varians
+   - Mid Range
+   - Modus
+   - Quartil (Q1, Q2, Q3)
+   - Outliers
+
+4. **Visualisasi Data**
+   - Radar Chart (perbandingan antar bidang)
+   - Box Plot (sebaran data)
+   - Histogram (distribusi frekuensi)
+   - Stem and Leaf Plot (pola distribusi)
+
+5. **Penerapan Materi Probstat**
+   - Distribusi Frekuensi
+   - Statistik Deskriptif
+   - Download data statistik dalam format JSON
 
 ## Teknologi yang Digunakan
 
 ### Backend
 - Flask (Web Framework)
 - Supabase (Database)
-- NumPy (Perhitungan Statistik)
-- Chart.js (Visualisasi Data)
+- Perhitungan Statistik Manual (tanpa library eksternal)
 
 ### Frontend
 - HTML5
 - CSS3
 - JavaScript
 - Bootstrap 5
+- Chart.js (Visualisasi Data)
 - Font Awesome (Icons)
 - Dropzone.js (Upload File)
 
-### Database
-- Supabase (PostgreSQL)
-
 ## Cara Menjalankan Program
 
-### Lokal
 1. Clone repository ini
 2. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-3. Setup environment variables:
-   - `SUPABASE_URL`: URL Supabase Anda
-   - `SUPABASE_KEY`: API Key Supabase Anda
-   - `SECRET_KEY`: Secret key untuk Flask session
+3. Setup Supabase:
+   - Buat project di Supabase
+   - Salin URL dan API Key ke environment variables
+   - Buat tabel `participants` dengan kolom yang sesuai
 
 4. Jalankan aplikasi:
    ```bash
@@ -73,37 +100,35 @@ Program ini merupakan website pengolahan data hasil tryout SNBT yang dibangun me
    ```
 5. Buka browser dan akses `http://localhost:5000`
 
-### Deployment di Vercel
-1. Fork repository ini ke akun GitHub Anda
-2. Buat akun di Vercel (vercel.com)
-3. Import repository dari GitHub ke Vercel
-4. Setup environment variables di Vercel:
-   - `SUPABASE_URL`
-   - `SUPABASE_KEY`
-   - `SECRET_KEY`
-5. Deploy aplikasi
+## Dependencies
 
-## Struktur Database
+- flask
+- python-dotenv
+- supabase
+- werkzeug
 
-### Tabel `participants`
-- id (integer, primary key)
-- name (text)
-- school (text)
-- province (text)
-- subject (text)
-- score (float)
-- rank (integer)
+## Fitur Keamanan
 
-## Fitur yang Akan Datang
-- Export data ke Excel
-- Grafik perbandingan antar provinsi
-- Analisis trend nilai
-- Dashboard statistik real-time
+- CSRF Protection
+- Login Authentication
+- Secure Password Storage
+- Input Validation
+
+## Fitur Perhitungan Statistik
+
+Semua perhitungan statistik dilakukan secara manual tanpa menggunakan library eksternal:
+- Mean (rata-rata)
+- Median
+- Mode (modus)
+- Standard Deviation (simpangan baku)
+- Variance (varians)
+- Quartiles (Q1, Q2/median, Q3)
+- Range dan Mid-range
+- Outlier detection
+- Frequency distribution
 
 ## Tim Pengembang
+
 - Rifky Dwi Rahmat Prakoso (H1D024001)
 - Wakhid Nugroho (H1D024003)
-- Astria Dina Fitri (H1D024004)
-
-## Lisensi
-MIT License 
+- Astria Dina Fitri (H1D024004) 
