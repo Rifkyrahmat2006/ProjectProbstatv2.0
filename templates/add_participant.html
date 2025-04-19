@@ -2,14 +2,18 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>Add Participant - {{ current_subject|capitalize }}</h2>
+    <h2>Tambah Peserta</h2>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
     
     <form method="POST" class="mt-4">
-        <div class="mb-3">
-            <label for="rank" class="form-label">Rank</label>
-            <input type="number" class="form-control" id="rank" name="rank" required>
-        </div>
-        
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="mb-3">
             <label for="nama" class="form-label">Nama Peserta</label>
             <input type="text" class="form-control" id="nama" name="nama" required>
@@ -26,12 +30,27 @@
         </div>
         
         <div class="mb-3">
-            <label for="nilai" class="form-label">Nilai</label>
-            <input type="text" class="form-control" id="nilai" name="nilai" required>
+            <label for="subject" class="form-label">Mata Pelajaran</label>
+            <select class="form-select" id="subject" name="subject" required>
+                <option value="matematika">Matematika</option>
+                <option value="fisika">Fisika</option>
+                <option value="kimia">Kimia</option>
+                <option value="biologi">Biologi</option>
+                <option value="informatika">Informatika</option>
+                <option value="astronomi">Astronomi</option>
+                <option value="ekonomi">Ekonomi</option>
+                <option value="kebumian">Kebumian</option>
+                <option value="geografi">Geografi</option>
+            </select>
         </div>
         
-        <button type="submit" class="btn btn-primary">Add Participant</button>
-        <a href="{{ url_for('admin_dashboard', subject=current_subject) }}" class="btn btn-secondary">Cancel</a>
+        <div class="mb-3">
+            <label for="nilai" class="form-label">Nilai</label>
+            <input type="number" step="0.01" class="form-control" id="nilai" name="nilai" required>
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Simpan</button>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">Batal</a>
     </form>
 </div>
 {% endblock %} 

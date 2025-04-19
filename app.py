@@ -1,300 +1,248 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
-import os
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_wtf.csrf import CSRFProtect
 import csv
-import math
 import matplotlib
 matplotlib.use('Agg')  # Set backend ke Agg sebelum mengimpor pyplot
 import matplotlib.pyplot as plt
 import seaborn as sns
 import io
 import base64
-from functools import wraps
+import numpy as np
+import math
+from models import db, User, Participant
+from dotenv import load_dotenv
+import os
+from supabase import create_client, Client
+
+# Load environment variables
+load_dotenv()
+
+# Initialize Supabase client
+supabase: Client = create_client(
+    os.getenv("SUPABASE_URL"),
+    os.getenv("SUPABASE_KEY")
+)
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'  # Ganti dengan secret key yang aman
+app.config['SECRET_KEY'] = 'your-secret-key'  # Change this to a secure secret key
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Login required decorator
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'username' not in session:
-            flash('Please login first')
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated_function
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
 
-def get_users():
-    users = []
-    try:
-        with open('data/users.csv', 'r', encoding='utf-8') as file:
-            csv_reader = csv.DictReader(file)
-            for row in csv_reader:
-                # Bersihkan whitespace dari username dan password
-                row['username'] = row['username'].strip()
-                row['password'] = row['password'].strip()
-                users.append(row)
-    except Exception as e:
-        print(f"Error reading users.csv: {str(e)}")
-        # Buat file users.csv jika tidak ada
-        with open('data/users.csv', 'w', newline='', encoding='utf-8') as file:
-            writer = csv.DictWriter(file, fieldnames=['username', 'password'])
-            writer.writeheader()
-            writer.writerow({'username': 'admin', 'password': 'admin123'})
-            users = [{'username': 'admin', 'password': 'admin123'}]
-    return users
+db.init_app(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
 
-def save_users(users):
-    with open('data/users.csv', 'w', newline='') as file:
-        writer = csv.DictWriter(file, fieldnames=['username', 'password'])
-        writer.writeheader()
-        writer.writerows(users)
+@login_manager.user_loader
+def load_user(user_id):
+    return User.get(user_id)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
-        users = get_users()
         
-        print(f"Attempting login with username: {username}")  # Debug
-        print(f"Available users: {users}")  # Debug
-        
-        user = next((user for user in users if user['username'] == username and user['password'] == password), None)
+        user = User.authenticate(username, password)
         if user:
-            session['username'] = username
-            return redirect(url_for('admin_dashboard'))
-        flash('Invalid username or password')
+            login_user(user)
+            return redirect(url_for('home'))
+        
+        flash('Invalid username or password', 'error')
+    
     return render_template('login.html')
 
 @app.route('/logout')
+@login_required
 def logout():
-    session.pop('username', None)
+    logout_user()
     return redirect(url_for('home'))
+
+def get_users():
+    try:
+        response = supabase.table('users').select('*').execute()
+        return response.data
+    except Exception as e:
+        print(f"Error reading users: {str(e)}")
+        # Create default admin user if table is empty
+        try:
+            supabase.table('users').insert({
+                'username': 'admin',
+                'password': 'admin123'
+            }).execute()
+            return [{'username': 'admin', 'password': 'admin123'}]
+        except Exception as e:
+            print(f"Error creating default user: {str(e)}")
+            return []
+
+def save_users(users):
+    try:
+        # Delete all existing users
+        supabase.table('users').delete().neq('id', 0).execute()
+        # Insert new users
+        for user in users:
+            supabase.table('users').insert(user).execute()
+    except Exception as e:
+        print(f"Error saving users: {str(e)}")
+        raise
+
+# Dictionary untuk mapping kode bidang ke nama lengkap
+SUBJECTS = {}
+
+def update_subjects():
+    """Update SUBJECTS dictionary from existing data"""
+    try:
+        response = supabase.table('participants').select('subject').execute()
+        if response.data:
+            # Get unique subjects
+            subjects = set(participant['subject'] for participant in response.data)
+            # Update SUBJECTS dictionary
+            for subject in subjects:
+                if subject not in SUBJECTS:
+                    # Convert subject code to proper name
+                    name = subject.capitalize()
+                    SUBJECTS[subject] = name
+    except Exception as e:
+        print(f"Error updating subjects: {str(e)}")
+
+# Initialize subjects at startup
+update_subjects()
 
 @app.route('/admin')
 @login_required
 def admin_dashboard():
-    subject = request.args.get('subject', 'matematika')
-    current_subject = subject.lower()
-    
-    participants = []
     try:
-        filename = f"data/{current_subject.capitalize()}.csv"
-        with open(filename, 'r', encoding='utf-8') as file:
-            reader = csv.reader(file, delimiter=';')
-            # Skip header rows
-            next(reader)
-            next(reader)
-            next(reader)
+        # Update subjects before rendering
+        update_subjects()
+        
+        # Get all participants from Supabase
+        response = supabase.table('participants').select('*').execute()
+        
+        if not response.data:
+            return render_template('admin_dashboard.html', participants=[], subjects=SUBJECTS)
             
-            for row in reader:
-                if len(row) >= 5:
-                    participants.append({
-                        'Rank': row[0],
-                        'Nama Peserta': row[1],
-                        'Asal Sekolah': row[2],
-                        'Provinsi': row[3],
-                        'Nilai': row[4]
-                    })
+        participants = response.data
+        return render_template('admin_dashboard.html', participants=participants, subjects=SUBJECTS)
     except Exception as e:
-        print(f"Error reading CSV file: {str(e)}")
-        flash('Error reading data file')
-    
-    return render_template('admin_dashboard.html', 
-                         participants=participants,
-                         current_subject=current_subject,
-                         subjects=SUBJECTS)
+        print(f"Error in admin_dashboard: {str(e)}")
+        flash(f'Error: {str(e)}', 'danger')
+        return redirect(url_for('home'))
 
 @app.route('/admin/participant/add', methods=['GET', 'POST'])
 @login_required
 def add_participant():
-    subject = request.args.get('subject', 'matematika')
-    current_subject = subject.lower()
-    
     if request.method == 'POST':
-        new_participant = {
-            'Rank': request.form.get('rank'),
-            'Nama Peserta': request.form.get('nama'),
-            'Asal Sekolah': request.form.get('sekolah'),
-            'Provinsi': request.form.get('provinsi'),
-            'Nilai': request.form.get('nilai')
-        }
-        
-        participants = []
         try:
-            filename = f"data/{current_subject.capitalize()}.csv"
-            with open(filename, 'r', encoding='utf-8') as file:
-                reader = csv.reader(file, delimiter=';')
-                # Skip header rows
-                next(reader)
-                next(reader)
-                next(reader)
+            # Get form data
+            name = request.form['nama']
+            school = request.form['sekolah']
+            province = request.form['provinsi']
+            subject = request.form['subject']
+            score = float(request.form['nilai'])  # Convert to float instead of int
+            
+            # Insert into Supabase
+            data = {
+                'name': name,
+                'school': school,
+                'province': province,
+                'subject': subject,
+                'score': score
+            }
+            response = supabase.table('participants').insert(data).execute()
+            
+            if response.data:
+                flash('Peserta berhasil ditambahkan', 'success')
+            else:
+                flash('Gagal menambahkan peserta', 'danger')
                 
-                for row in reader:
-                    if len(row) >= 5:
-                        participants.append({
-                            'Rank': row[0],
-                            'Nama Peserta': row[1],
-                            'Asal Sekolah': row[2],
-                            'Provinsi': row[3],
-                            'Nilai': row[4]
-                        })
-            
-            participants.append(new_participant)
-            
-            with open(filename, 'w', newline='', encoding='utf-8') as file:
-                writer = csv.writer(file, delimiter=';')
-                writer.writerow(['Column1', 'Column2', 'Column3', 'Column4', 'Column5'])
-                writer.writerow(['Hasil TO Pra-KSK Evalator KSN 2022 Bidang ' + current_subject.capitalize(), '', '', '', ''])
-                writer.writerow(['Rank', 'Nama Peserta', 'Asal Sekolah', 'Provinsi', 'Nilai'])
-                for p in participants:
-                    writer.writerow([p['Rank'], p['Nama Peserta'], p['Asal Sekolah'], p['Provinsi'], p['Nilai']])
-            
-            flash('Participant added successfully')
-            return redirect(url_for('admin_dashboard', subject=current_subject))
         except Exception as e:
-            print(f"Error writing to CSV file: {str(e)}")
-            flash('Error saving data')
-    
-    return render_template('add_participant.html', current_subject=current_subject)
-
-@app.route('/admin/participant/<int:rank>/edit', methods=['GET', 'POST'])
-@login_required
-def edit_participant(rank):
-    subject = request.args.get('subject', 'matematika')
-    current_subject = subject.lower()
-    
-    participants = []
-    try:
-        filename = f"data/{current_subject.capitalize()}.csv"
-        with open(filename, 'r', encoding='utf-8') as file:
-            reader = csv.reader(file, delimiter=';')
-            # Skip header rows
-            next(reader)
-            next(reader)
-            next(reader)
+            print(f"Error adding participant: {str(e)}")
+            flash(f'Error: {str(e)}', 'danger')
             
-            for row in reader:
-                if len(row) >= 5:
-                    participants.append({
-                        'Rank': row[0],
-                        'Nama Peserta': row[1],
-                        'Asal Sekolah': row[2],
-                        'Provinsi': row[3],
-                        'Nilai': row[4]
-                    })
+        return redirect(url_for('admin_dashboard'))
+    
+    return render_template('add_participant.html', subjects=SUBJECTS)
+
+@app.route('/admin/participant/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_participant(id):
+    try:
+        response = supabase.table('participants').select('*').eq('id', id).execute()
+        participant = response.data[0] if response.data else None
+        
+        if not participant:
+            flash('Participant not found', 'error')
+            return redirect(url_for('admin_dashboard'))
+        
+        if request.method == 'POST':
+            updated_participant = {
+                'name': request.form.get('nama'),
+                'school': request.form.get('sekolah'),
+                'province': request.form.get('provinsi'),
+                'score': float(request.form.get('nilai')),
+                'subject': request.form.get('subject')
+            }
+            
+            try:
+                supabase.table('participants').update(updated_participant).eq('id', id).execute()
+                flash('Participant updated successfully', 'success')
+                return redirect(url_for('admin_dashboard'))
+            except Exception as e:
+                print(f"Error updating participant: {str(e)}")
+                flash('Error saving data', 'error')
+        
+        return render_template('edit_participant.html', participant=participant)
     except Exception as e:
-        print(f"Error reading CSV file: {str(e)}")
-        flash('Error reading data file')
-        return redirect(url_for('admin_dashboard', subject=current_subject))
-    
-    participant = next((p for p in participants if int(p['Rank']) == rank), None)
-    if not participant:
-        flash('Participant not found')
-        return redirect(url_for('admin_dashboard', subject=current_subject))
-    
-    if request.method == 'POST':
-        participant['Nama Peserta'] = request.form.get('nama')
-        participant['Asal Sekolah'] = request.form.get('sekolah')
-        participant['Provinsi'] = request.form.get('provinsi')
-        participant['Nilai'] = request.form.get('nilai')
-        
-        try:
-            with open(filename, 'w', newline='', encoding='utf-8') as file:
-                writer = csv.writer(file, delimiter=';')
-                writer.writerow(['Column1', 'Column2', 'Column3', 'Column4', 'Column5'])
-                writer.writerow(['Hasil TO Pra-KSK Evalator KSN 2022 Bidang ' + current_subject.capitalize(), '', '', '', ''])
-                writer.writerow(['Rank', 'Nama Peserta', 'Asal Sekolah', 'Provinsi', 'Nilai'])
-                for p in participants:
-                    writer.writerow([p['Rank'], p['Nama Peserta'], p['Asal Sekolah'], p['Provinsi'], p['Nilai']])
-            
-            flash('Participant updated successfully')
-            return redirect(url_for('admin_dashboard', subject=current_subject))
-        except Exception as e:
-            print(f"Error writing to CSV file: {str(e)}")
-            flash('Error saving data')
-    
-    return render_template('edit_participant.html', participant=participant, current_subject=current_subject)
+        print(f"Error reading participant: {str(e)}")
+        flash('Error reading data', 'error')
+        return redirect(url_for('admin_dashboard'))
 
-@app.route('/admin/participant/<int:rank>/delete', methods=['POST'])
+@app.route('/admin/participant/<int:id>/delete', methods=['GET', 'POST'])
 @login_required
-def delete_participant(rank):
-    subject = request.args.get('subject', 'matematika')
-    current_subject = subject.lower()
-    
-    participants = []
+def delete_participant(id):
     try:
-        filename = f"data/{current_subject.capitalize()}.csv"
-        with open(filename, 'r', encoding='utf-8') as file:
-            reader = csv.reader(file, delimiter=';')
-            # Skip header rows
-            next(reader)
-            next(reader)
-            next(reader)
-            
-            for row in reader:
-                if len(row) >= 5:
-                    participants.append({
-                        'Rank': row[0],
-                        'Nama Peserta': row[1],
-                        'Asal Sekolah': row[2],
-                        'Provinsi': row[3],
-                        'Nilai': row[4]
-                    })
-        
-        # Remove the participant
-        participants = [p for p in participants if int(p['Rank']) != rank]
-        
-        with open(filename, 'w', newline='', encoding='utf-8') as file:
-            writer = csv.writer(file, delimiter=';')
-            writer.writerow(['Column1', 'Column2', 'Column3', 'Column4', 'Column5'])
-            writer.writerow(['Hasil TO Pra-KSK Evalator KSN 2022 Bidang ' + current_subject.capitalize(), '', '', '', ''])
-            writer.writerow(['Rank', 'Nama Peserta', 'Asal Sekolah', 'Provinsi', 'Nilai'])
-            for p in participants:
-                writer.writerow([p['Rank'], p['Nama Peserta'], p['Asal Sekolah'], p['Provinsi'], p['Nilai']])
-        
-        flash('Participant deleted successfully')
+        supabase.table('participants').delete().eq('id', id).execute()
+        flash('Participant deleted successfully', 'success')
     except Exception as e:
         print(f"Error deleting participant: {str(e)}")
-        flash('Error deleting participant')
+        flash('Error deleting participant', 'error')
     
-    return redirect(url_for('admin_dashboard', subject=current_subject))
+    return redirect(url_for('admin_dashboard'))
 
-# Dictionary untuk mapping kode bidang ke nama lengkap
-SUBJECTS = {
-    'matematika': 'Matematika',
-    'fisika': 'Fisika',
-    'kimia': 'Kimia',
-    'biologi': 'Biologi',
-    'informatika': 'Informatika',
-    'astronomi': 'Astronomi',
-    'ekonomi': 'Ekonomi',
-    'kebumian': 'Kebumian',
-    'geografi': 'Geografi'
-}
+@app.route('/admin/participants/delete-selected', methods=['POST'])
+@login_required
+def delete_selected_participants():
+    try:
+        selected_ids = request.form.getlist('selected_ids')
+        
+        if not selected_ids:
+            flash('Tidak ada peserta yang dipilih', 'warning')
+            return redirect(url_for('admin_dashboard'))
+            
+        # Delete selected participants
+        for participant_id in selected_ids:
+            supabase.table('participants').delete().eq('id', participant_id).execute()
+            
+        flash(f'{len(selected_ids)} peserta berhasil dihapus', 'success')
+    except Exception as e:
+        print(f"Error deleting participants: {str(e)}")
+        flash(f'Error: {str(e)}', 'danger')
+        
+    return redirect(url_for('admin_dashboard'))
 
 def read_csv_data(subject):
-    """Membaca data dari file CSV sesuai bidang"""
-    data = []
+    """Membaca data dari Supabase sesuai bidang"""
     try:
-        filename = f"data/{subject.capitalize()}.csv"
-        print(f"Reading file: {filename}")
-        
-        with open(filename, 'r', encoding='utf-8') as file:
-            reader = csv.reader(file, delimiter=';')
-            # Skip header rows
-            next(reader)  # Skip column headers
-            next(reader)  # Skip title
-            next(reader)  # Skip actual headers
-            
-            for row in reader:
-                row = [cell.strip() for cell in row]
-                if len(row) >= 5 and row[0] and row[4]:
-                    data.append(row)
+        response = supabase.table('participants').select('*').eq('subject', subject.lower()).execute()
+        data = response.data
+        return data
     except Exception as e:
-        print(f"Error reading CSV file: {str(e)}")
+        print(f"Error reading data: {str(e)}")
         raise
-    return data
 
 def get_subject_data(data, subject):
     """Mendapatkan data untuk bidang tertentu"""
@@ -308,19 +256,16 @@ def get_subject_data(data, subject):
             break
             
         try:
-            nilai = row[4].replace(',', '.')
-            if nilai.replace('.', '').isdigit():
-                score = float(nilai)
-                
-                subject_data.append({
-                    'rank': row[0],
-                    'nama': row[1],
-                    'sekolah': row[2],
-                    'provinsi': row[3],
-                    'nilai': score
-                })
-                count += 1
-        except (ValueError, IndexError) as e:
+            score = float(row['score'])
+            subject_data.append({
+                'rank': row['rank'],
+                'nama': row['name'],
+                'sekolah': row['school'],
+                'provinsi': row['province'],
+                'nilai': score
+            })
+            count += 1
+        except (ValueError, KeyError) as e:
             print(f"Error processing row: {e}")
             continue
     
@@ -407,119 +352,110 @@ def create_stem_leaf_plot(data):
     if not data:
         return None
         
-    plt.clf()  # Clear figure
-    plt.figure(figsize=(10, 6))
-    values = [d['nilai'] for d in data]
-    
-    # Pisahkan stem dan leaf
-    stems = []
-    leaves = []
-    for value in sorted(values):
-        stem = int(value // 10)
-        leaf = int(value % 10)
-        stems.append(stem)
-        leaves.append(leaf)
-    
-    # Buat plot
-    plt.stem(stems, leaves)
-    plt.title('Stem and Leaf Plot')
-    plt.xlabel('Stem')
-    plt.ylabel('Leaf')
-    
-    # Simpan plot ke buffer
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight')
-    buf.seek(0)
-    plt.close()
-    
-    return base64.b64encode(buf.getvalue()).decode()
+    try:
+        plt.clf()  # Clear figure
+        plt.figure(figsize=(10, 6))
+        values = [d['nilai'] for d in data]
+        
+        # Pisahkan stem dan leaf
+        stems = []
+        leaves = []
+        for value in sorted(values):
+            stem = int(value // 10)
+            leaf = int(value % 10)
+            stems.append(stem)
+            leaves.append(leaf)
+        
+        # Buat plot
+        plt.stem(stems, leaves)
+        plt.title('Stem and Leaf Plot')
+        plt.xlabel('Stem')
+        plt.ylabel('Leaf')
+        
+        # Simpan plot ke buffer
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        plt.close()
+        
+        return base64.b64encode(buf.getvalue()).decode()
+    except Exception as e:
+        print(f"Error creating stem and leaf plot: {str(e)}")
+        return None
 
 def create_histogram(data):
     """Membuat histogram"""
     if not data:
         return None
         
-    plt.clf()  # Clear figure
-    plt.figure(figsize=(10, 6))
-    values = [d['nilai'] for d in data]
-    
-    # Buat histogram
-    sns.histplot(values, bins=5)
-    plt.title('Histogram')
-    plt.xlabel('Nilai')
-    plt.ylabel('Frekuensi')
-    
-    # Simpan plot ke buffer
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight')
-    buf.seek(0)
-    plt.close()
-    
-    return base64.b64encode(buf.getvalue()).decode()
+    try:
+        plt.clf()  # Clear figure
+        plt.figure(figsize=(10, 6))
+        values = [d['nilai'] for d in data]
+        
+        # Buat histogram
+        sns.histplot(values, bins=5)
+        plt.title('Histogram')
+        plt.xlabel('Nilai')
+        plt.ylabel('Frekuensi')
+        
+        # Simpan plot ke buffer
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        plt.close()
+        
+        return base64.b64encode(buf.getvalue()).decode()
+    except Exception as e:
+        print(f"Error creating histogram: {str(e)}")
+        return None
 
 def create_box_plot(data):
     """Membuat box plot"""
     if not data:
         return None
         
-    plt.clf()  # Clear figure
-    plt.figure(figsize=(10, 6))
-    values = [d['nilai'] for d in data]
-    
-    # Buat box plot
-    sns.boxplot(y=values)
-    plt.title('Box Plot')
-    plt.ylabel('Nilai')
-    
-    # Simpan plot ke buffer
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight')
-    buf.seek(0)
-    plt.close()
-    
-    return base64.b64encode(buf.getvalue()).decode()
+    try:
+        plt.clf()  # Clear figure
+        plt.figure(figsize=(10, 6))
+        values = [d['nilai'] for d in data]
+        
+        # Buat box plot
+        sns.boxplot(y=values)
+        plt.title('Box Plot')
+        plt.ylabel('Nilai')
+        
+        # Simpan plot ke buffer
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        plt.close()
+        
+        return base64.b64encode(buf.getvalue()).decode()
+    except Exception as e:
+        print(f"Error creating box plot: {str(e)}")
+        return None
 
 @app.route('/')
 def home():
-    subject = request.args.get('subject', 'matematika')
-    current_subject = subject.lower()
-    
     try:
-        # Baca data dari file CSV yang sesuai
-        print(f"\n=== Starting data processing for subject: {current_subject} ===")
-        data = read_csv_data(current_subject)
-        print(f"Total rows in CSV: {len(data)}")
+        # Get current subject from query parameter, default to 'all'
+        current_subject = request.args.get('subject', 'all')
         
-        # Dapatkan data untuk bidang yang dipilih
-        subject_data = get_subject_data(data, current_subject)
-        print(f"Found {len(subject_data)} rows for subject {current_subject}")
+        # Get all participants from Supabase
+        if current_subject == 'all':
+            response = supabase.table('participants').select('*').order('score', desc=True).execute()
+        else:
+            response = supabase.table('participants').select('*').eq('subject', current_subject).order('score', desc=True).execute()
         
-        if not subject_data:
-            print("WARNING: No data found for the selected subject!")
-        
-        # Hitung statistik
-        statistics = calculate_statistics(subject_data)
-        
-        # Buat visualisasi
-        stem_leaf_plot = create_stem_leaf_plot(subject_data)
-        histogram = create_histogram(subject_data)
-        box_plot = create_box_plot(subject_data)
-        
-        return render_template('home.html',
-                             statistics=statistics,
-                             current_subject=current_subject,
-                             subjects=SUBJECTS,
-                             table_data=subject_data,
-                             stem_leaf_plot=stem_leaf_plot,
-                             histogram=histogram,
-                             box_plot=box_plot)
-                             
+        if not response.data:
+            return render_template('home.html', participants=[], subjects=SUBJECTS, current_subject=current_subject)
+            
+        participants = response.data
+        return render_template('home.html', participants=participants, subjects=SUBJECTS, current_subject=current_subject)
     except Exception as e:
-        print(f"Error: {str(e)}")
-        return render_template('home.html',
-                             error=str(e),
-                             current_subject=current_subject,
-                             subjects=SUBJECTS)
+        print(f"Error in home route: {str(e)}")
+        return render_template('home.html', participants=[], subjects=SUBJECTS, current_subject='all')
 
 @app.route('/compare')
 def compare():
@@ -571,6 +507,154 @@ def compare():
 @app.route('/about')
 def about():
     return render_template('about.html')
+
+@app.route('/admin/add_subject', methods=['GET', 'POST'])
+@login_required
+def add_subject():
+    if request.method == 'POST':
+        try:
+            subject_key = request.form['subject_key'].lower()
+            subject_name = request.form['subject_name']
+            
+            # Update SUBJECTS dictionary
+            SUBJECTS[subject_key] = subject_name
+            
+            flash('Bidang berhasil ditambahkan', 'success')
+            return redirect(url_for('admin_dashboard'))
+        except Exception as e:
+            flash(f'Error: {str(e)}', 'danger')
+            return redirect(url_for('admin_dashboard'))
+    
+    return render_template('add_subject.html')
+
+@app.route('/admin/import_csv', methods=['POST'])
+@login_required
+def import_csv():
+    try:
+        if 'csv_file' not in request.files:
+            return jsonify({
+                'success': False,
+                'message': 'Tidak ada file yang dipilih',
+                'redirect': url_for('admin_dashboard')
+            })
+            
+        file = request.files['csv_file']
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'message': 'Tidak ada file yang dipilih',
+                'redirect': url_for('admin_dashboard')
+            })
+            
+        if not file.filename.endswith('.csv'):
+            return jsonify({
+                'success': False,
+                'message': 'File harus berformat CSV',
+                'redirect': url_for('admin_dashboard')
+            })
+            
+        # Extract subject from filename (format: subject_name.csv)
+        subject = file.filename.split('.')[0].lower()
+        
+        # Read CSV file
+        import csv
+        from io import StringIO
+        
+        # Convert file to string
+        content = file.read().decode('utf-8')
+        csv_data = StringIO(content)
+        reader = csv.reader(csv_data, delimiter=';')
+        
+        # Skip header rows if they exist
+        try:
+            next(reader)  # Skip first header
+            next(reader)  # Skip second header
+            next(reader)  # Skip third header
+        except StopIteration:
+            csv_data.seek(0)
+            reader = csv.reader(csv_data, delimiter=';')
+        
+        # First pass: collect all scores to calculate ranks
+        rows_with_scores = []
+        for row in reader:
+            if len(row) >= 5:  # Make sure row has enough columns
+                try:
+                    score = float(row[4].replace(',', '.'))
+                    rows_with_scores.append({
+                        'name': row[1],
+                        'school': row[2],
+                        'province': row[3],
+                        'score': score,
+                        'subject': subject
+                    })
+                except Exception as e:
+                    print(f"Error processing row: {str(e)}")
+                    continue
+        
+        # Sort by score in descending order
+        rows_with_scores.sort(key=lambda x: x['score'], reverse=True)
+        
+        success_count = 0
+        error_count = 0
+        duplicate_count = 0
+        
+        # Check for duplicates and insert into Supabase
+        for rank, row_data in enumerate(rows_with_scores, 1):
+            try:
+                # Check for duplicates
+                response = supabase.table('participants').select('*').eq('name', row_data['name']).eq('subject', subject).execute()
+                
+                if response.data:
+                    duplicate_count += 1
+                    continue
+                
+                # Add rank to the data
+                row_data['rank'] = rank
+                
+                # Insert into Supabase
+                supabase.table('participants').insert(row_data).execute()
+                success_count += 1
+            except Exception as e:
+                print(f"Error processing row: {str(e)}")
+                error_count += 1
+                continue
+        
+        # Update subjects dictionary
+        update_subjects()
+        
+        message = f'Berhasil mengimpor {success_count} data ke bidang {subject}. {duplicate_count} data duplikat ditemukan. {error_count} data gagal diimpor.' if success_count > 0 else 'Tidak ada data yang berhasil diimpor'
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'redirect': url_for('admin_dashboard')
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'redirect': url_for('admin_dashboard')
+        })
+
+@app.route('/admin/delete_subject/<subject_key>', methods=['POST'])
+@login_required
+def delete_subject(subject_key):
+    try:
+        if subject_key in SUBJECTS:
+            # Delete subject from dictionary
+            del SUBJECTS[subject_key]
+            
+            # Delete all participants with this subject
+            supabase.table('participants').delete().eq('subject', subject_key).execute()
+            
+            flash('Bidang berhasil dihapus', 'success')
+        else:
+            flash('Bidang tidak ditemukan', 'danger')
+    except Exception as e:
+        flash(f'Error: {str(e)}', 'danger')
+    
+    return redirect(url_for('admin_dashboard'))
 
 if __name__ == '__main__':
     app.run(debug=True) 

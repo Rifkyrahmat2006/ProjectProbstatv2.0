@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Tambah Bidang Baru</h2>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    <form method="POST" class="mt-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-3">
+            <label for="subject_key" class="form-label">Kode Bidang</label>
+            <input type="text" class="form-control" id="subject_key" name="subject_key" required>
+            <div class="form-text">Gunakan huruf kecil tanpa spasi (contoh: matematika, fisika)</div>
+        </div>
+        
+        <div class="mb-3">
+            <label for="subject_name" class="form-label">Nama Bidang</label>
+            <input type="text" class="form-control" id="subject_name" name="subject_name" required>
+            <div class="form-text">Nama lengkap bidang (contoh: Matematika, Fisika)</div>
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Tambah Bidang</button>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">Batal</a>
+    </form>
+</div>
+{% endblock %} 

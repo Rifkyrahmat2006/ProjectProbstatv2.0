@@ -5,8 +5,8 @@
     <div class="row justify-content-center">
         <div class="col-md-6">
             <div class="card">
-                <div class="card-header">
-                    <h3 class="text-center">Login</h3>
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-sign-in-alt me-2"></i>Login</h5>
                 </div>
                 <div class="card-body">
                     {% with messages = get_flashed_messages() %}
@@ -17,6 +17,7 @@
                         {% endif %}
                     {% endwith %}
                     <form method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label for="username" class="form-label">Username</label>
                             <input type="text" class="form-control" id="username" name="username" required>
@@ -25,9 +26,9 @@
                             <label for="password" class="form-label">Password</label>
                             <input type="password" class="form-control" id="password" name="password" required>
                         </div>
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-primary">Login</button>
-                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-sign-in-alt me-2"></i>Login
+                        </button>
                     </form>
                 </div>
             </div>

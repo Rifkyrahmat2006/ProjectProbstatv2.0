@@ -2,36 +2,55 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>Edit Participant - {{ current_subject|capitalize }}</h2>
+    <h2>Edit Peserta</h2>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
     
     <form method="POST" class="mt-4">
-        <div class="mb-3">
-            <label for="rank" class="form-label">Rank</label>
-            <input type="text" class="form-control" id="rank" value="{{ participant['Rank'] }}" readonly>
-        </div>
-        
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="mb-3">
             <label for="nama" class="form-label">Nama Peserta</label>
-            <input type="text" class="form-control" id="nama" name="nama" value="{{ participant['Nama Peserta'] }}" required>
+            <input type="text" class="form-control" id="nama" name="nama" value="{{ participant.name }}" required>
         </div>
         
         <div class="mb-3">
             <label for="sekolah" class="form-label">Asal Sekolah</label>
-            <input type="text" class="form-control" id="sekolah" name="sekolah" value="{{ participant['Asal Sekolah'] }}" required>
+            <input type="text" class="form-control" id="sekolah" name="sekolah" value="{{ participant.school }}" required>
         </div>
         
         <div class="mb-3">
             <label for="provinsi" class="form-label">Provinsi</label>
-            <input type="text" class="form-control" id="provinsi" name="provinsi" value="{{ participant['Provinsi'] }}" required>
+            <input type="text" class="form-control" id="provinsi" name="provinsi" value="{{ participant.province }}" required>
+        </div>
+        
+        <div class="mb-3">
+            <label for="subject" class="form-label">Mata Pelajaran</label>
+            <select class="form-select" id="subject" name="subject" required>
+                <option value="matematika" {% if participant.subject == 'matematika' %}selected{% endif %}>Matematika</option>
+                <option value="fisika" {% if participant.subject == 'fisika' %}selected{% endif %}>Fisika</option>
+                <option value="kimia" {% if participant.subject == 'kimia' %}selected{% endif %}>Kimia</option>
+                <option value="biologi" {% if participant.subject == 'biologi' %}selected{% endif %}>Biologi</option>
+                <option value="informatika" {% if participant.subject == 'informatika' %}selected{% endif %}>Informatika</option>
+                <option value="astronomi" {% if participant.subject == 'astronomi' %}selected{% endif %}>Astronomi</option>
+                <option value="ekonomi" {% if participant.subject == 'ekonomi' %}selected{% endif %}>Ekonomi</option>
+                <option value="kebumian" {% if participant.subject == 'kebumian' %}selected{% endif %}>Kebumian</option>
+                <option value="geografi" {% if participant.subject == 'geografi' %}selected{% endif %}>Geografi</option>
+            </select>
         </div>
         
         <div class="mb-3">
             <label for="nilai" class="form-label">Nilai</label>
-            <input type="text" class="form-control" id="nilai" name="nilai" value="{{ participant['Nilai'] }}" required>
+            <input type="number" step="0.01" class="form-control" id="nilai" name="nilai" value="{{ participant.score }}" required>
         </div>
         
-        <button type="submit" class="btn btn-primary">Update Participant</button>
-        <a href="{{ url_for('admin_dashboard', subject=current_subject) }}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">Batal</a>
     </form>
 </div>
 {% endblock %} 

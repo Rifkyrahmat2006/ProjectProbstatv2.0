@@ -4,17 +4,37 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
-class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(120), nullable=False)
-    is_admin = db.Column(db.Boolean, default=False)
+class User(UserMixin):
+    def __init__(self, id, username):
+        self.id = id
+        self.username = username
 
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+    @staticmethod
+    def get(user_id):
+        try:
+            from app import supabase
+            response = supabase.table('users').select('*').eq('id', user_id).execute()
+            if response.data:
+                user_data = response.data[0]
+                return User(user_data['id'], user_data['username'])
+            return None
+        except Exception as e:
+            print(f"Error getting user: {str(e)}")
+            return None
 
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+    @staticmethod
+    def authenticate(username, password):
+        try:
+            from app import supabase
+            response = supabase.table('users').select('*').eq('username', username).execute()
+            if response.data:
+                user_data = response.data[0]
+                if user_data['password'] == password:
+                    return User(user_data['id'], user_data['username'])
+            return None
+        except Exception as e:
+            print(f"Error authenticating user: {str(e)}")
+            return None
 
 class Participant(db.Model):
     id = db.Column(db.Integer, primary_key=True)

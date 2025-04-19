@@ -2,62 +2,299 @@
 
 {% block content %}
 <div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Admin Dashboard</h2>
-        <div class="d-flex align-items-center">
-            <select class="form-select me-2" id="subjectSelect" onchange="changeSubject(this.value)">
-                {% for key, value in subjects.items() %}
-                <option value="{{ key }}" {% if key == current_subject %}selected{% endif %}>{{ value }}</option>
-                {% endfor %}
-            </select>
-            <a href="{{ url_for('add_participant') }}" class="btn btn-primary">Add Participant</a>
-        </div>
-    </div>
-
-    {% with messages = get_flashed_messages() %}
+    <h2>Admin Dashboard</h2>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-            {% for message in messages %}
-                <div class="alert alert-info">{{ message }}</div>
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
             {% endfor %}
         {% endif %}
     {% endwith %}
-
-    <div class="table-responsive">
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Rank</th>
-                    <th>Nama Peserta</th>
-                    <th>Asal Sekolah</th>
-                    <th>Provinsi</th>
-                    <th>Nilai</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for participant in participants %}
-                <tr>
-                    <td>{{ participant['Rank'] }}</td>
-                    <td>{{ participant['Nama Peserta'] }}</td>
-                    <td>{{ participant['Asal Sekolah'] }}</td>
-                    <td>{{ participant['Provinsi'] }}</td>
-                    <td>{{ participant['Nilai'] }}</td>
-                    <td>
-                        <a href="{{ url_for('edit_participant', rank=participant['Rank']) }}" class="btn btn-sm btn-warning">Edit</a>
-                        <form action="{{ url_for('delete_participant', rank=participant['Rank']) }}" method="POST" style="display: inline;">
-                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this participant?')">Delete</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    
+    <!-- Import CSV Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-file-import me-2"></i>Import Data dari CSV</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('import_csv') }}" enctype="multipart/form-data" class="dropzone" id="csvDropzone">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
+                <div class="dz-message">
+                    <div class="text-center">
+                        <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
+                        <h4>Seret file CSV ke sini atau klik untuk memilih</h4>
+                        <p class="text-muted">
+                            Format file harus CSV dengan delimiter semicolon (;)<br>
+                            Nama file harus sesuai dengan nama bidang (contoh: matematika.csv)<br>
+                            Contoh format data:<br>
+                            No;Nama;Sekolah;Provinsi;Nilai<br>
+                            1;John Doe;SMA 1 Jakarta;DKI Jakarta;85,5
+                        </p>
+                    </div>
+                </div>
+                <div class="text-center mt-3">
+                    <button type="submit" class="btn btn-primary" id="submit-csv">
+                        <i class="fas fa-upload me-2"></i>Unggah File
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Subject Management Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-book me-2"></i>Manajemen Bidang</h5>
+            <a href="{{ url_for('add_subject') }}" class="btn btn-light btn-sm">
+                <i class="fas fa-plus me-2"></i>Tambah Bidang
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Kode</th>
+                            <th>Nama Bidang</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for key, value in subjects.items() %}
+                        <tr>
+                            <td>{{ key }}</td>
+                            <td>{{ value }}</td>
+                            <td>
+                                <form method="POST" action="{{ url_for('delete_subject', subject_key=key) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Apakah Anda yakin ingin menghapus bidang ini?')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Participant Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-user-plus me-2"></i>Tambah Peserta</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('add_participant') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="mb-3">
+                    <label for="nama" class="form-label">Nama Peserta</label>
+                    <input type="text" class="form-control" id="nama" name="nama" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="sekolah" class="form-label">Asal Sekolah</label>
+                    <input type="text" class="form-control" id="sekolah" name="sekolah" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="provinsi" class="form-label">Provinsi</label>
+                    <input type="text" class="form-control" id="provinsi" name="provinsi" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="subject" class="form-label">Mata Pelajaran</label>
+                    <select class="form-select" id="subject" name="subject" required>
+                        {% for key, value in subjects.items() %}
+                        <option value="{{ key }}">{{ value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="nilai" class="form-label">Nilai</label>
+                    <input type="number" step="0.01" class="form-control" id="nilai" name="nilai" required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Tambah Peserta</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Participants List -->
+    <div class="card">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-users me-2"></i>Daftar Peserta</h5>
+            <button type="button" class="btn btn-danger" id="deleteSelectedBtn" disabled onclick="deleteSelected()">
+                <i class="fas fa-trash me-2"></i>Hapus Terpilih
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                                </div>
+                            </th>
+                            <th>Nama</th>
+                            <th>Sekolah</th>
+                            <th>Provinsi</th>
+                            <th>Bidang</th>
+                            <th>Nilai</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="participantsTable">
+                        {% for participant in participants %}
+                        <tr>
+                            <td>
+                                <div class="form-check">
+                                    <input class="form-check-input participant-checkbox" type="checkbox" value="{{ participant.id }}" onchange="updateDeleteButton()">
+                                </div>
+                            </td>
+                            <td>{{ participant.name }}</td>
+                            <td>{{ participant.school }}</td>
+                            <td>{{ participant.province }}</td>
+                            <td>{{ participant.subject }}</td>
+                            <td>{{ "%.2f"|format(participant.score) }}</td>
+                            <td>
+                                <a href="{{ url_for('edit_participant', id=participant.id) }}" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('delete_participant', id=participant.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Apakah Anda yakin ingin menghapus peserta ini?')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 
+<!-- Add Dropzone CSS and JS -->
+<link rel="stylesheet" href="https://unpkg.com/dropzone@5/dist/min/dropzone.min.css" type="text/css" />
+<script src="https://unpkg.com/dropzone@5/dist/min/dropzone.min.js"></script>
+
 <script>
-function changeSubject(subject) {
-    window.location.href = `/admin?subject=${subject}`;
-}
+    // Initialize Dropzone
+    Dropzone.options.csvDropzone = {
+        paramName: "csv_file",
+        maxFilesize: 5, // MB
+        acceptedFiles: ".csv",
+        autoProcessQueue: false, // Disable auto upload
+        maxFiles: 1, // Only allow one file
+        init: function() {
+            var submitButton = document.querySelector("#submit-csv");
+            var myDropzone = this;
+            
+            // When a file is added
+            this.on("addedfile", function(file) {
+                // Remove any existing files
+                if (this.files.length > 1) {
+                    this.removeFile(this.files[0]);
+                }
+            });
+            
+            // When the form is submitted
+            document.querySelector("#csvDropzone").addEventListener("submit", function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (myDropzone.files.length === 0) {
+                    alert("Silakan pilih file CSV terlebih dahulu");
+                    return;
+                }
+                
+                myDropzone.processQueue();
+            });
+            
+            // When the upload is complete
+            this.on("success", function(file, response) {
+                location.reload();
+            });
+            
+            // When there's an error
+            this.on("error", function(file, errorMessage) {
+                alert(errorMessage);
+            });
+        },
+        dictDefaultMessage: "Seret file CSV ke sini atau klik untuk memilih",
+        dictFallbackMessage: "Browser Anda tidak mendukung drag'n'drop file uploads.",
+        dictFileTooBig: "File terlalu besar ({{filesize}}MB). Maksimal: {{maxFilesize}}MB.",
+        dictInvalidFileType: "Anda tidak dapat mengunggah file dengan tipe ini.",
+        dictResponseError: "Server merespon dengan kode {{statusCode}}.",
+        dictCancelUpload: "Batalkan upload",
+        dictUploadCanceled: "Upload dibatalkan.",
+        dictCancelUploadConfirmation: "Apakah Anda yakin ingin membatalkan upload ini?",
+        dictRemoveFile: "Hapus file",
+        dictMaxFilesExceeded: "Anda tidak dapat mengunggah file lagi.",
+        createImageThumbnails: false
+    };
+
+    function toggleSelectAll() {
+        const selectAll = document.getElementById('selectAll');
+        if (!selectAll) return;
+        
+        const checkboxes = document.querySelectorAll('.participant-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = selectAll.checked;
+        });
+        updateDeleteButton();
+    }
+
+    function updateDeleteButton() {
+        const checkboxes = document.querySelectorAll('.participant-checkbox:checked');
+        const deleteButton = document.getElementById('deleteSelectedBtn');
+        if (deleteButton) {
+            deleteButton.disabled = checkboxes.length === 0;
+        }
+    }
+
+    function deleteSelected() {
+        const checkboxes = document.querySelectorAll('.participant-checkbox:checked');
+        const selectedIds = Array.from(checkboxes).map(checkbox => checkbox.value);
+        
+        if (selectedIds.length === 0) {
+            return;
+        }
+        
+        if (confirm(`Apakah Anda yakin ingin menghapus ${selectedIds.length} peserta terpilih?`)) {
+            // Create a form and submit it
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = "{{ url_for('delete_selected_participants') }}";
+            
+            // Add CSRF token
+            const csrfToken = document.createElement('input');
+            csrfToken.type = 'hidden';
+            csrfToken.name = 'csrf_token';
+            csrfToken.value = "{{ csrf_token() }}";
+            form.appendChild(csrfToken);
+            
+            // Add selected IDs
+            selectedIds.forEach(id => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'selected_ids';
+                input.value = id;
+                form.appendChild(input);
+            });
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
 </script>
 {% endblock %} 
