@@ -2,51 +2,290 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>Statistical Comparison</h2>
+    <h1 class="mb-4">Perbandingan Statistik</h1>
+    
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-primary" onclick="showChart('radar')">Radar Chart</button>
+                <button type="button" class="btn btn-primary" onclick="showChart('box')">Box Plot</button>
+                <button type="button" class="btn btn-primary" onclick="showChart('histogram')">Histogram</button>
+                <button type="button" class="btn btn-primary" onclick="showChart('stem')">Stem and Leaf</button>
+            </div>
+        </div>
+        <div class="col-md-6 text-end">
+            <button type="button" class="btn btn-success" onclick="downloadStats()">Download Statistics</button>
+        </div>
+    </div>
+    
     <div class="row">
-        <div class="col-md-8 offset-md-2">
-            <canvas id="radarChart"></canvas>
+        <div class="col-md-12">
+            <div class="card mb-4 chart-container" id="radarContainer">
+                <div class="card-body">
+                    <h5 class="card-title">Radar Chart</h5>
+                    <canvas id="radarChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="card mb-4 chart-container" id="boxContainer" style="display: none;">
+                <div class="card-body">
+                    <h5 class="card-title">Box Plot</h5>
+                    <div id="boxPlot"></div>
+                </div>
+            </div>
+            
+            <div class="card mb-4 chart-container" id="histogramContainer" style="display: none;">
+                <div class="card-body">
+                    <h5 class="card-title">Histogram</h5>
+                    <canvas id="histogram"></canvas>
+                </div>
+            </div>
+            
+            <div class="card mb-4 chart-container" id="stemContainer" style="display: none;">
+                <div class="card-body">
+                    <h5 class="card-title">Stem and Leaf Plot</h5>
+                    <div id="stemLeafPlot"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const ctx = document.getElementById('radarChart').getContext('2d');
-    const chartData = {
-        labels: JSON.parse('{{ radar_labels|tojson|safe }}'),
-        datasets: JSON.parse('{{ radar_datasets|tojson|safe }}')
-    };
-    
-    const radarChart = new Chart(ctx, {
-        type: 'radar',
-        data: chartData,
-        options: {
-            scales: {
-                r: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return value.toFixed(2);
-                        }
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    position: 'right'
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return `${context.dataset.label}: ${context.raw.toFixed(2)}`;
-                        }
-                    }
-                }
-            }
-        }
+let chartData = {{ subjects_data|tojson|safe }};
+let charts = {};
+
+function showChart(type) {
+    // Hide all containers
+    document.querySelectorAll('.chart-container').forEach(container => {
+        container.style.display = 'none';
     });
+    
+    // Show selected container
+    document.getElementById(type + 'Container').style.display = 'block';
+    
+    // Initialize chart if not already created
+    if (!charts[type]) {
+        initializeChart(type);
+    }
+}
+
+function downloadStats() {
+    if (!chartData) return;
+    
+    const stats = {};
+    Object.keys(chartData).forEach(subject => {
+        stats[subject] = {
+            name: chartData[subject].name,
+            statistics: {
+                mean: chartData[subject].stats.mean.toFixed(2),
+                median: chartData[subject].stats.median.toFixed(2),
+                std_dev: chartData[subject].stats.std_dev.toFixed(2),
+                q1: chartData[subject].stats.q1.toFixed(2),
+                q3: chartData[subject].stats.q3.toFixed(2),
+                min: chartData[subject].stats.min.toFixed(2),
+                max: chartData[subject].stats.max.toFixed(2),
+                n: chartData[subject].stats.n
+            }
+        };
+    });
+    
+    const blob = new Blob([JSON.stringify(stats, null, 2)], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'statistics.json';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
+function formatStemLeaf(scores) {
+    const stemLeafData = {};
+    scores.forEach(score => {
+        const stem = Math.floor(score / 10);
+        const leaf = Math.floor(score % 10);
+        if (!stemLeafData[stem]) {
+            stemLeafData[stem] = [];
+        }
+        stemLeafData[stem].push(leaf);
+    });
+    
+    let result = '';
+    Object.keys(stemLeafData).sort((a, b) => b - a).forEach(stem => {
+        result += `${stem} | ${stemLeafData[stem].sort((a, b) => a - b).join(' ')}\n`;
+    });
+    return result;
+}
+
+function initializeChart(type) {
+    const subjects = Object.keys(chartData);
+    const colors = [
+        'rgba(255, 99, 132, 0.2)',
+        'rgba(54, 162, 235, 0.2)',
+        'rgba(255, 206, 86, 0.2)',
+        'rgba(75, 192, 192, 0.2)',
+        'rgba(153, 102, 255, 0.2)'
+    ];
+    const borders = colors.map(color => color.replace('0.2', '1'));
+
+    switch(type) {
+        case 'radar':
+            const radarCtx = document.getElementById('radarChart').getContext('2d');
+            const radarData = {
+                labels: ['Mean', 'Median', 'Std Dev', 'Q1', 'Q3'],
+                datasets: subjects.map((subject, i) => ({
+                    label: chartData[subject].name,
+                    data: [
+                        chartData[subject].stats.mean,
+                        chartData[subject].stats.median,
+                        chartData[subject].stats.std_dev,
+                        chartData[subject].stats.q1,
+                        chartData[subject].stats.q3
+                    ],
+                    backgroundColor: colors[i],
+                    borderColor: borders[i],
+                    borderWidth: 1
+                }))
+            };
+            
+            charts.radar = new Chart(radarCtx, {
+                type: 'radar',
+                data: radarData,
+                options: {
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+            break;
+
+        case 'box':
+            const boxData = subjects.map(subject => {
+                const stats = chartData[subject].stats;
+                return {
+                    y: chartData[subject].stats.sorted_data,
+                    name: chartData[subject].name,
+                    type: 'box',
+                    boxpoints: 'all',
+                    jitter: 0.3,
+                    pointpos: -1.8
+                };
+            });
+            
+            const boxLayout = {
+                title: 'Score Distribution by Subject',
+                yaxis: {
+                    title: 'Score',
+                    zeroline: false
+                },
+                boxmode: 'group'
+            };
+            
+            Plotly.newPlot('boxPlot', boxData, boxLayout);
+            break;
+
+        case 'histogram':
+            const histCtx = document.getElementById('histogram').getContext('2d');
+            const histData = {
+                labels: subjects.map(subject => chartData[subject].name),
+                datasets: subjects.map((subject, i) => {
+                    const data = chartData[subject].stats.sorted_data;
+                    const frequencies = {};
+                    data.forEach(score => {
+                        const key = Math.floor(score / 10) * 10;
+                        frequencies[key] = (frequencies[key] || 0) + 1;
+                    });
+                    
+                    return {
+                        label: chartData[subject].name,
+                        data: Object.entries(frequencies).map(([range, count]) => count),
+                        backgroundColor: colors[i],
+                        borderColor: borders[i],
+                        borderWidth: 1
+                    };
+                })
+            };
+            
+            charts.histogram = new Chart(histCtx, {
+                type: 'bar',
+                data: histData,
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Frequency'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Score Range'
+                            }
+                        }
+                    }
+                }
+            });
+            break;
+
+        case 'stem':
+            const stemLeafDiv = document.getElementById('stemLeafPlot');
+            stemLeafDiv.innerHTML = '';
+            subjects.forEach(subject => {
+                const plot = document.createElement('div');
+                plot.className = 'mb-3';
+                plot.innerHTML = `
+                    <h6>${chartData[subject].name}</h6>
+                    <pre>${formatStemLeaf(chartData[subject].stats.sorted_data)}</pre>
+                `;
+                stemLeafDiv.appendChild(plot);
+            });
+            break;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (Object.keys(chartData).length === 0) {
+        alert('Tidak ada data yang tersedia untuk divisualisasi');
+        return;
+    }
+    
+    // Initialize radar chart by default
+    initializeChart('radar');
+    showChart('radar');
 });
 </script>
+
+<style>
+.btn-group .btn {
+    margin-right: 5px;
+}
+.chart-container {
+    min-height: 400px;
+}
+#stemLeafPlot pre {
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    font-family: monospace;
+}
+</style>
 {% endblock %} 

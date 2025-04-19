@@ -2,10 +2,6 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_wtf.csrf import CSRFProtect
 import csv
-import matplotlib
-matplotlib.use('Agg')  # Set backend ke Agg sebelum mengimpor pyplot
-import matplotlib.pyplot as plt
-import seaborn as sns
 import io
 import base64
 import numpy as np
@@ -126,6 +122,10 @@ def admin_dashboard():
             return render_template('admin_dashboard.html', participants=[], subjects=SUBJECTS)
             
         participants = response.data
+        
+        # Sort participants by score in descending order for each subject
+        participants.sort(key=lambda x: (x['subject'], -float(x['score'])))
+        
         return render_template('admin_dashboard.html', participants=participants, subjects=SUBJECTS)
     except Exception as e:
         print(f"Error in admin_dashboard: {str(e)}")
@@ -142,7 +142,17 @@ def add_participant():
             school = request.form['sekolah']
             province = request.form['provinsi']
             subject = request.form['subject']
-            score = float(request.form['nilai'])  # Convert to float instead of int
+            score = float(request.form['nilai'])  # Convert to float
+            
+            # Get current participants for the subject to calculate rank
+            response = supabase.table('participants').select('*').eq('subject', subject).order('score', desc=True).execute()
+            current_participants = response.data
+            
+            # Calculate rank based on score
+            rank = 1
+            for participant in current_participants:
+                if float(participant['score']) > score:
+                    rank += 1
             
             # Insert into Supabase
             data = {
@@ -150,11 +160,17 @@ def add_participant():
                 'school': school,
                 'province': province,
                 'subject': subject,
-                'score': score
+                'score': score,
+                'rank': rank
             }
             response = supabase.table('participants').insert(data).execute()
             
             if response.data:
+                # Update ranks for other participants
+                for participant in current_participants:
+                    if float(participant['score']) <= score:
+                        supabase.table('participants').update({'rank': participant['rank'] + 1}).eq('id', participant['id']).execute()
+                
                 flash('Peserta berhasil ditambahkan', 'success')
             else:
                 flash('Gagal menambahkan peserta', 'danger')
@@ -245,267 +261,178 @@ def read_csv_data(subject):
         raise
 
 def get_subject_data(data, subject):
-    """Mendapatkan data untuk bidang tertentu"""
+    """Get data for specific subject"""
     subject_data = []
-    count = 0
-    
-    print(f"\nProcessing data for subject: {subject}")
-    
     for row in data:
-        if count >= 20:
-            break
-            
-        try:
-            score = float(row['score'])
-            subject_data.append({
-                'rank': row['rank'],
-                'nama': row['name'],
-                'sekolah': row['school'],
-                'provinsi': row['province'],
-                'nilai': score
-            })
-            count += 1
-        except (ValueError, KeyError) as e:
-            print(f"Error processing row: {e}")
-            continue
-    
-    print(f"Total data collected: {len(subject_data)}")
+        subject_data.append({
+            'name': row[0],
+            'school': row[1],
+            'province': row[2],
+            'score': float(row[3])
+        })
     return subject_data
 
-def calculate_statistics(data):
-    """Menghitung statistik dasar"""
-    if not data:
-        return None
+def calculate_statistics(participants):
+    """Calculate statistics for the given participants"""
+    if not participants:
+        return {
+            'n': 0,
+            'sorted_data': [],
+            'min': 0,
+            'max': 0,
+            'mean': 0,
+            'median': 0,
+            'std_dev': 0,
+            'q1': 0,
+            'q3': 0,
+            'mode': 0,
+            'frequency_distribution': []
+        }
     
-    # Ekstrak nilai
-    values = [d['nilai'] for d in data]
-    n = len(values)
+    # Extract scores
+    scores = [float(p['score']) for p in participants]
+    scores.sort()
     
-    if n == 0:
-        return None
+    # Basic statistics
+    n = len(scores)
+    min_score = min(scores)
+    max_score = max(scores)
+    mean = sum(scores) / n
     
-    # Urutkan nilai
-    sorted_values = sorted(values)
+    # Median and quartiles
+    median = np.median(scores)
+    q1 = np.percentile(scores, 25)
+    q3 = np.percentile(scores, 75)
     
-    # Statistik dasar
-    min_val = min(values)
-    max_val = max(values)
-    mean = sum(values) / n
+    # Standard deviation
+    std_dev = np.std(scores)
     
-    # Median
-    if n % 2 == 0:
-        median = (sorted_values[n//2-1] + sorted_values[n//2]) / 2
-    else:
-        median = sorted_values[n//2]
+    # Mode
+    mode = max(set(scores), key=scores.count)
     
-    # Standar deviasi
-    variance = sum((x - mean) ** 2 for x in values) / n
-    std_dev = math.sqrt(variance)
-    
-    # Kuartil
-    q1_idx = n // 4
-    q3_idx = 3 * n // 4
-    q1 = sorted_values[q1_idx]
-    q3 = sorted_values[q3_idx]
-    
-    # Modus
-    value_counts = {}
-    for value in values:
-        value_counts[value] = value_counts.get(value, 0) + 1
-    mode = max(value_counts.items(), key=lambda x: x[1])[0]
-    
-    # Distribusi frekuensi
-    class_width = (max_val - min_val) / 5  # 5 kelas
-    freq_dist = []
-    cumulative_freq = 0
+    # Frequency distribution
+    bin_size = (max_score - min_score) / 5
+    frequency_distribution = []
+    cumulative_frequency = 0
     
     for i in range(5):
-        class_start = min_val + (i * class_width)
-        class_end = class_start + class_width
-        frequency = len([x for x in values if class_start <= x < class_end])
-        relative_freq = (frequency / n) * 100
-        cumulative_freq += frequency
+        start = min_score + (i * bin_size)
+        end = start + bin_size
+        frequency = len([s for s in scores if start <= s < end])
+        cumulative_frequency += frequency
+        relative_frequency = (frequency / n) * 100
         
-        freq_dist.append({
-            'class_range': f"{class_start:.1f}-{class_end:.1f}",
+        frequency_distribution.append({
+            'class_range': f"{start:.1f}-{end:.1f}",
             'frequency': frequency,
-            'relative_frequency': relative_freq,
-            'cumulative_frequency': cumulative_freq
+            'relative_frequency': relative_frequency,
+            'cumulative_frequency': cumulative_frequency
         })
     
     return {
         'n': n,
-        'min': min_val,
-        'max': max_val,
+        'sorted_data': scores,
+        'min': min_score,
+        'max': max_score,
         'mean': mean,
         'median': median,
         'std_dev': std_dev,
         'q1': q1,
         'q3': q3,
         'mode': mode,
-        'frequency_distribution': freq_dist,
-        'sorted_data': sorted_values
+        'frequency_distribution': frequency_distribution
     }
-
-def create_stem_leaf_plot(data):
-    """Membuat stem and leaf plot"""
-    if not data:
-        return None
-        
-    try:
-        plt.clf()  # Clear figure
-        plt.figure(figsize=(10, 6))
-        values = [d['nilai'] for d in data]
-        
-        # Pisahkan stem dan leaf
-        stems = []
-        leaves = []
-        for value in sorted(values):
-            stem = int(value // 10)
-            leaf = int(value % 10)
-            stems.append(stem)
-            leaves.append(leaf)
-        
-        # Buat plot
-        plt.stem(stems, leaves)
-        plt.title('Stem and Leaf Plot')
-        plt.xlabel('Stem')
-        plt.ylabel('Leaf')
-        
-        # Simpan plot ke buffer
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png', bbox_inches='tight')
-        buf.seek(0)
-        plt.close()
-        
-        return base64.b64encode(buf.getvalue()).decode()
-    except Exception as e:
-        print(f"Error creating stem and leaf plot: {str(e)}")
-        return None
-
-def create_histogram(data):
-    """Membuat histogram"""
-    if not data:
-        return None
-        
-    try:
-        plt.clf()  # Clear figure
-        plt.figure(figsize=(10, 6))
-        values = [d['nilai'] for d in data]
-        
-        # Buat histogram
-        sns.histplot(values, bins=5)
-        plt.title('Histogram')
-        plt.xlabel('Nilai')
-        plt.ylabel('Frekuensi')
-        
-        # Simpan plot ke buffer
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png', bbox_inches='tight')
-        buf.seek(0)
-        plt.close()
-        
-        return base64.b64encode(buf.getvalue()).decode()
-    except Exception as e:
-        print(f"Error creating histogram: {str(e)}")
-        return None
-
-def create_box_plot(data):
-    """Membuat box plot"""
-    if not data:
-        return None
-        
-    try:
-        plt.clf()  # Clear figure
-        plt.figure(figsize=(10, 6))
-        values = [d['nilai'] for d in data]
-        
-        # Buat box plot
-        sns.boxplot(y=values)
-        plt.title('Box Plot')
-        plt.ylabel('Nilai')
-        
-        # Simpan plot ke buffer
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png', bbox_inches='tight')
-        buf.seek(0)
-        plt.close()
-        
-        return base64.b64encode(buf.getvalue()).decode()
-    except Exception as e:
-        print(f"Error creating box plot: {str(e)}")
-        return None
 
 @app.route('/')
 def home():
     try:
-        # Get current subject from query parameter, default to 'all'
-        current_subject = request.args.get('subject', 'all')
+        # Get subject from query parameter
+        subject = request.args.get('subject', 'all')
+        
+        # Update subjects before rendering
+        update_subjects()
         
         # Get all participants from Supabase
-        if current_subject == 'all':
-            response = supabase.table('participants').select('*').order('score', desc=True).execute()
-        else:
-            response = supabase.table('participants').select('*').eq('subject', current_subject).order('score', desc=True).execute()
+        response = supabase.table('participants').select('*').order('score', desc=True).execute()
+        participants = response.data if response.data else []
         
-        if not response.data:
-            return render_template('home.html', participants=[], subjects=SUBJECTS, current_subject=current_subject)
+        # Sort participants by score in descending order
+        participants.sort(key=lambda x: float(x['score']), reverse=True)
+        
+        if subject != 'all':
+            # Filter participants by subject
+            participants = [p for p in participants if p['subject'] == subject]
+            # Update ranks for filtered participants
+            for i, p in enumerate(participants, 1):
+                p['rank'] = i
+        else:
+            # For 'all', recalculate ranks based on overall scores
+            current_rank = 1
+            current_score = None
+            same_rank_count = 0
             
-        participants = response.data
-        return render_template('home.html', participants=participants, subjects=SUBJECTS, current_subject=current_subject)
+            for p in participants:
+                score = float(p['score'])
+                if score != current_score:
+                    current_rank += same_rank_count
+                    same_rank_count = 1
+                    current_score = score
+                else:
+                    same_rank_count += 1
+                p['rank'] = current_rank
+        
+        # Calculate statistics
+        statistics = calculate_statistics(participants)
+        
+        return render_template('home.html', 
+                             participants=participants,
+                             statistics=statistics,
+                             subjects=SUBJECTS,
+                             current_subject=subject)
     except Exception as e:
         print(f"Error in home route: {str(e)}")
-        return render_template('home.html', participants=[], subjects=SUBJECTS, current_subject='all')
+        flash(f'Error: {str(e)}', 'danger')
+        return render_template('home.html', 
+                             participants=[],
+                             statistics={},
+                             subjects=SUBJECTS,
+                             current_subject='all')
 
 @app.route('/compare')
 def compare():
-    subjects_data = {}
-    for subject in SUBJECTS:
-        try:
-            # Get data directly from Supabase
-            response = supabase.table('participants').select('*').eq('subject', subject.lower()).execute()
-            data = response.data
+    try:
+        # Update subjects before rendering
+        update_subjects()
+        
+        # Get all participants from Supabase
+        response = supabase.table('participants').select('*').execute()
+        all_participants = response.data if response.data else []
+        
+        # Group participants by subject
+        subjects_data = {}
+        for subject in SUBJECTS:
+            # Filter participants by subject
+            participants = [p for p in all_participants if p['subject'] == subject]
             
-            # Calculate statistics
-            stats = calculate_statistics(data)
-            subjects_data[subject] = stats
-        except Exception as e:
-            print(f"Error processing {subject}: {str(e)}")
-            continue
-    
-    # Prepare data for radar chart
-    labels = ['Mean', 'Median', 'Std Dev', 'Q1', 'Q3']
-    datasets = []
-    
-    colors = [
-        'rgba(255, 99, 132, 0.2)',
-        'rgba(54, 162, 235, 0.2)',
-        'rgba(255, 206, 86, 0.2)',
-        'rgba(75, 192, 192, 0.2)',
-        'rgba(153, 102, 255, 0.2)',
-        'rgba(255, 159, 64, 0.2)',
-        'rgba(199, 199, 199, 0.2)',
-        'rgba(83, 102, 255, 0.2)',
-        'rgba(40, 159, 64, 0.2)'
-    ]
-    
-    borders = [color.replace('0.2', '1') for color in colors]
-    
-    for i, (subject, stats) in enumerate(subjects_data.items()):
-        if stats:  # Only add if stats exist
-            datasets.append({
-                'label': SUBJECTS[subject],
-                'data': [stats['mean'], stats['median'], stats['std_dev'], stats['q1'], stats['q3']],
-                'backgroundColor': colors[i],
-                'borderColor': borders[i],
-                'borderWidth': 1
-            })
-    
-    return render_template('compare.html', 
-                         subjects_data=subjects_data,
-                         subjects=SUBJECTS,
-                         radar_labels=labels,
-                         radar_datasets=datasets)
+            if participants:
+                # Calculate statistics for the subject
+                stats = calculate_statistics(participants)
+                if stats:
+                    subjects_data[subject] = {
+                        'name': SUBJECTS[subject],
+                        'stats': stats,
+                        'participants': participants
+                    }
+        
+        return render_template('compare.html', 
+                             subjects_data=subjects_data,
+                             subjects=SUBJECTS)
+    except Exception as e:
+        print(f"Error in compare route: {str(e)}")
+        flash(f'Error: {str(e)}', 'danger')
+        return render_template('compare.html', 
+                             subjects_data={},
+                             subjects=SUBJECTS)
 
 @app.route('/about')
 def about():
@@ -658,6 +585,83 @@ def delete_subject(subject_key):
         flash(f'Error: {str(e)}', 'danger')
     
     return redirect(url_for('admin_dashboard'))
+
+@app.route('/api/statistics')
+def get_statistics():
+    subjects_data = {}
+    for subject in SUBJECTS:
+        try:
+            # Get data directly from Supabase
+            response = supabase.table('participants').select('*').eq('subject', subject.lower()).execute()
+            data = response.data
+            
+            if not data:
+                continue
+                
+            # Convert data to required format
+            formatted_data = []
+            for item in data:
+                try:
+                    score = float(item.get('score', 0))
+                    formatted_data.append({
+                        'nilai': score,
+                        'nama': item.get('name', ''),
+                        'sekolah': item.get('school', ''),
+                        'provinsi': item.get('province', '')
+                    })
+                except (ValueError, TypeError) as e:
+                    print(f"Error processing item: {str(e)}")
+                    continue
+            
+            if not formatted_data:
+                continue
+                
+            # Calculate statistics
+            stats = calculate_statistics(formatted_data)
+            if stats:
+                subjects_data[subject] = {
+                    'name': SUBJECTS[subject],
+                    'stats': stats
+                }
+        except Exception as e:
+            print(f"Error processing {subject}: {str(e)}")
+            continue
+    
+    return jsonify(subjects_data)
+
+@app.route('/edit_subject/<subject_key>', methods=['GET', 'POST'])
+@login_required
+def edit_subject(subject_key):
+    if request.method == 'POST':
+        new_name = request.form.get('subject_name')
+        if new_name and subject_key in SUBJECTS:
+            # Update subject in SUBJECTS dictionary
+            old_name = SUBJECTS[subject_key]
+            SUBJECTS[subject_key] = new_name
+            
+            # Update subject in participants table
+            try:
+                # Get all participants with this subject
+                response = supabase.table('participants').select('*').eq('subject', subject_key).execute()
+                if response.data:
+                    # Update each participant's subject
+                    supabase.table('participants').update({
+                        'subject': subject_key  # Ensure subject code is consistent
+                    }).eq('subject', subject_key).execute()
+            except Exception as e:
+                print(f"Error updating participants: {str(e)}")
+                flash('Terjadi kesalahan saat memperbarui data peserta', 'error')
+                return redirect(url_for('admin_dashboard'))
+            
+            flash('Bidang berhasil diperbarui!', 'success')
+            return redirect(url_for('admin_dashboard'))
+    
+    # Get current subject data
+    if subject_key not in SUBJECTS:
+        flash('Bidang tidak ditemukan!', 'error')
+        return redirect(url_for('admin_dashboard'))
+    
+    return render_template('edit_subject.html', subject={'code': subject_key, 'name': SUBJECTS[subject_key]})
 
 if __name__ == '__main__':
     app.run(debug=True) 

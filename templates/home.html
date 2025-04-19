@@ -2,6 +2,46 @@
 
 {% block content %}
 <div class="container mt-4">
+    <!-- Search and Filter Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-search me-2"></i>Cari Peserta</h5>
+        </div>
+        <div class="card-body">
+            <form id="searchForm" class="row g-3">
+                <div class="col-md-3">
+                    <label for="searchName" class="form-label">Nama Peserta</label>
+                    <input type="text" class="form-control" id="searchName" placeholder="Cari nama...">
+                </div>
+                <div class="col-md-3">
+                    <label for="filterSchool" class="form-label">Sekolah</label>
+                    <input type="text" class="form-control" id="filterSchool" placeholder="Filter sekolah...">
+                </div>
+                <div class="col-md-3">
+                    <label for="filterProvince" class="form-label">Provinsi</label>
+                    <input type="text" class="form-control" id="filterProvince" placeholder="Filter provinsi...">
+                </div>
+                <div class="col-md-3">
+                    <label for="filterSubject" class="form-label">Bidang</label>
+                    <select class="form-select" id="filterSubject">
+                        <option value="">Semua Bidang</option>
+                        {% for key, value in subjects.items() %}
+                        <option value="{{ value }}">{{ value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12">
+                    <button type="button" class="btn btn-primary" onclick="applyFilters()">
+                        <i class="fas fa-search me-2"></i>Cari
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="resetFilters()">
+                        <i class="fas fa-undo me-2"></i>Reset
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Pilih Bidang -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
@@ -26,7 +66,7 @@
     <!-- Tabel Data -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="fas fa-table me-2"></i>Data Peserta</h5>
+            <h5 class="mb-0"><i class="fas fa-table me-2"></i>Data Peserta {% if current_subject != 'all' %}{{ subjects[current_subject] }}{% else %}Semua Bidang{% endif %}</h5>
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -34,21 +74,25 @@
                     <thead class="table-primary">
                         <tr>
                             <th>Rank</th>
-                            <th>Nama Peserta</th>
-                            <th>Asal Sekolah</th>
+                            <th>Nama</th>
+                            <th>Sekolah</th>
                             <th>Provinsi</th>
+                            {% if current_subject == 'all' %}
                             <th>Bidang</th>
+                            {% endif %}
                             <th>Nilai</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for participant in participants %}
                         <tr>
-                            <td>{{ loop.index }}</td>
+                            <td>{{ participant.rank }}</td>
                             <td>{{ participant.name }}</td>
                             <td>{{ participant.school }}</td>
                             <td>{{ participant.province }}</td>
-                            <td>{{ participant.subject }}</td>
+                            {% if current_subject == 'all' %}
+                            <td>{{ subjects[participant.subject] }}</td>
+                            {% endif %}
                             <td>{{ "%.2f"|format(participant.score) }}</td>
                         </tr>
                         {% endfor %}
@@ -57,5 +101,376 @@
             </div>
         </div>
     </div>
-</div>
+
+    <!-- Visualisasi Data -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Visualisasi Data</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">Distribusi Nilai</h6>
+                            <canvas id="scoreDistribution"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">Box Plot Nilai</h6>
+                            <canvas id="boxPlot"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">Histogram Nilai</h6>
+                            <canvas id="histogram"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">Stem and Leaf Plot</h6>
+                            <div id="stemLeafPlot" class="text-monospace"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deskripsi Statistik Data -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Deskripsi Statistik Data</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="mb-3">Data Set</h6>
+                    <p>Jumlah data: {{ statistics.n }}</p>
+                    <p>Data terurut: {{ statistics.sorted_data|join(', ') }}</p>
+                    
+                    <h6 class="mb-3">Statistik Dasar</h6>
+                    <ul class="list-group">
+                        <li class="list-group-item">Nilai Minimum: {{ "%.2f"|format(statistics.min) }}</li>
+                        <li class="list-group-item">Nilai Maksimum: {{ "%.2f"|format(statistics.max) }}</li>
+                        <li class="list-group-item">Range: {{ "%.2f"|format(statistics.max - statistics.min) }}</li>
+                        <li class="list-group-item">Mean: {{ "%.2f"|format(statistics.mean) }}</li>
+                        <li class="list-group-item">Median: {{ "%.2f"|format(statistics.median) }}</li>
+                        <li class="list-group-item">Standar Deviasi: {{ "%.2f"|format(statistics.std_dev) }}</li>
+                        <li class="list-group-item">Varians: {{ "%.2f"|format(statistics.std_dev ** 2) }}</li>
+                        <li class="list-group-item">Mid Range: {{ "%.2f"|format((statistics.max + statistics.min) / 2) }}</li>
+                        <li class="list-group-item">Modus: {{ "%.2f"|format(statistics.mode) }}</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="mb-3">Kuartil dan Range</h6>
+                    <ul class="list-group">
+                        <li class="list-group-item">Q1 (Kuartil 1): {{ "%.2f"|format(statistics.q1) }}</li>
+                        <li class="list-group-item">Q2 (Median): {{ "%.2f"|format(statistics.median) }}</li>
+                        <li class="list-group-item">Q3 (Kuartil 3): {{ "%.2f"|format(statistics.q3) }}</li>
+                        <li class="list-group-item">Interquartil Range (IQR): {{ "%.2f"|format(statistics.q3 - statistics.q1) }}</li>
+                    </ul>
+
+                    <h6 class="mb-3">Outliers</h6>
+                    {% set lower_bound = statistics.q1 - 1.5 * (statistics.q3 - statistics.q1) %}
+                    {% set upper_bound = statistics.q3 + 1.5 * (statistics.q3 - statistics.q1) %}
+                    <p>Batas bawah: {{ "%.2f"|format(lower_bound) }}</p>
+                    <p>Batas atas: {{ "%.2f"|format(upper_bound) }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Penerapan Materi Probstat -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Penerapan Materi Probstat</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="mb-3">Distribusi Frekuensi</h6>
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-primary">
+                                <tr>
+                                    <th>Kelas</th>
+                                    <th>Frekuensi</th>
+                                    <th>Frekuensi Relatif (%)</th>
+                                    <th>Frekuensi Kumulatif</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for freq in statistics.frequency_distribution %}
+                                <tr>
+                                    <td>{{ freq.class_range }}</td>
+                                    <td>{{ freq.frequency }}</td>
+                                    <td>{{ "%.2f"|format(freq.relative_frequency) }}</td>
+                                    <td>{{ freq.cumulative_frequency }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kasus Penerapan Materi -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-question-circle me-2"></i>Kasus Penerapan Materi</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="mb-3">Diketahui:</h6>
+                    <ul class="list-group">
+                        <li class="list-group-item">Jumlah peserta: {{ statistics.n }}</li>
+                        <li class="list-group-item">Rata-rata nilai: {{ "%.2f"|format(statistics.mean) }}</li>
+                        <li class="list-group-item">Standar deviasi: {{ "%.2f"|format(statistics.std_dev) }}</li>
+                        <li class="list-group-item">Nilai minimum: {{ "%.2f"|format(statistics.min) }}</li>
+                        <li class="list-group-item">Nilai maksimum: {{ "%.2f"|format(statistics.max) }}</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="mb-3">Pertanyaan:</h6>
+                    <ol class="list-group">
+                        <li class="list-group-item">Berapa probabilitas peserta mendapatkan nilai di atas rata-rata?</li>
+                        <li class="list-group-item">Berapa probabilitas peserta mendapatkan nilai antara Q1 dan Q3?</li>
+                        <li class="list-group-item">Jika diambil sampel acak 5 peserta, berapa probabilitas minimal 3 peserta mendapatkan nilai di atas rata-rata?</li>
+                    </ol>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6 class="mb-3">Jawaban:</h6>
+                    <div class="card">
+                        <div class="card-body">
+                            <h6>1. Probabilitas nilai di atas rata-rata:</h6>
+                            <p>Menggunakan distribusi normal:</p>
+                            <p>P(X > μ) = 0.5 (50%)</p>
+                            
+                            <h6>2. Probabilitas nilai antara Q1 dan Q3:</h6>
+                            <p>Menggunakan IQR:</p>
+                            <p>P(Q1 < X < Q3) = 0.5 (50%)</p>
+                            
+                            <h6>3. Probabilitas minimal 3 peserta di atas rata-rata:</h6>
+                            <p>Menggunakan distribusi binomial:</p>
+                            <p>P(X ≥ 3) = Σ C(5,k) * (0.5)^k * (0.5)^(5-k) untuk k = 3,4,5</p>
+                            <p>P(X ≥ 3) = 0.5 (50%)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+                    </div>
+                </div>
+            </div>
+
+<!-- Add Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Prepare data for charts
+        const scores = {{ statistics.sorted_data|tojson|safe }};
+        const minScore = {{ statistics.min }};
+        const maxScore = {{ statistics.max }};
+        const mean = {{ statistics.mean }};
+        const median = {{ statistics.median }};
+        const q1 = {{ statistics.q1 }};
+        const q3 = {{ statistics.q3 }};
+
+        // Score Distribution Chart
+        const scoreCtx = document.getElementById('scoreDistribution').getContext('2d');
+        new Chart(scoreCtx, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Nilai Peserta',
+                    data: scores.map((score, index) => ({x: index + 1, y: score})),
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Urutan Peserta'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Nilai'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Box Plot
+        const boxCtx = document.getElementById('boxPlot').getContext('2d');
+        new Chart(boxCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Box Plot'],
+                datasets: [{
+                    label: 'Min-Max',
+                    data: [maxScore - minScore],
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1,
+                    barPercentage: 0.3
+                }, {
+                    label: 'Q1-Q3',
+                    data: [q3 - q1],
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                    barPercentage: 0.5
+                }]
+            },
+            options: {
+                responsive: true,
+                indexAxis: 'y',
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Nilai'
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                if (context.datasetIndex === 0) {
+                                    return `Min: ${minScore}, Max: ${maxScore}`;
+                                } else {
+                                    return `Q1: ${q1}, Q3: ${q3}, Median: ${median}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Histogram
+        const histCtx = document.getElementById('histogram').getContext('2d');
+        const binSize = (maxScore - minScore) / 5;
+        const bins = [];
+        for (let i = 0; i < 5; i++) {
+            const start = minScore + (i * binSize);
+            const end = start + binSize;
+            const count = scores.filter(score => score >= start && score < end).length;
+            bins.push({
+                x: `${start.toFixed(1)}-${end.toFixed(1)}`,
+                y: count
+            });
+        }
+
+        new Chart(histCtx, {
+            type: 'bar',
+            data: {
+                labels: bins.map(bin => bin.x),
+                datasets: [{
+                    label: 'Frekuensi',
+                    data: bins.map(bin => bin.y),
+                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Frekuensi'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Rentang Nilai'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Stem and Leaf Plot
+        const stemLeafDiv = document.getElementById('stemLeafPlot');
+        const stemLeafData = {};
+        scores.forEach(score => {
+            const stem = Math.floor(score / 10);
+            const leaf = Math.floor(score % 10);
+            if (!stemLeafData[stem]) {
+                stemLeafData[stem] = [];
+            }
+            stemLeafData[stem].push(leaf);
+        });
+
+        let stemLeafHtml = '<div class="row">';
+        Object.keys(stemLeafData).sort((a, b) => b - a).forEach(stem => {
+            stemLeafHtml += `
+                <div class="col-2 text-end">${stem} |</div>
+                <div class="col-10">${stemLeafData[stem].sort((a, b) => a - b).join(' ')}</div>
+            `;
+        });
+        stemLeafHtml += '</div>';
+        stemLeafDiv.innerHTML = stemLeafHtml;
+    });
+
+    function applyFilters() {
+        const searchName = document.getElementById('searchName').value.toLowerCase();
+        const filterSchool = document.getElementById('filterSchool').value.toLowerCase();
+        const filterProvince = document.getElementById('filterProvince').value.toLowerCase();
+        const filterSubject = document.getElementById('filterSubject').value;
+        
+        const rows = document.querySelectorAll('table tbody tr');
+        
+        rows.forEach(row => {
+            const name = row.cells[1]?.textContent.toLowerCase() || '';
+            const school = row.cells[2]?.textContent.toLowerCase() || '';
+            const province = row.cells[3]?.textContent.toLowerCase() || '';
+            const subject = row.cells[4]?.textContent || '';
+            
+            const matchName = name.includes(searchName);
+            const matchSchool = school.includes(filterSchool);
+            const matchProvince = province.includes(filterProvince);
+            const matchSubject = !filterSubject || subject === filterSubject;
+            
+            if (matchName && matchSchool && matchProvince && matchSubject) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    function resetFilters() {
+        document.getElementById('searchForm').reset();
+        const rows = document.querySelectorAll('table tbody tr');
+        rows.forEach(row => row.style.display = '');
+    }
+</script>
 {% endblock %} 

@@ -2,38 +2,115 @@
 
 {% block content %}
 <div class="container mt-4">
-    <div class="card">
+    <div class="card mb-4">
         <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>About</h5>
+            <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Tentang Aplikasi</h5>
         </div>
         <div class="card-body">
-            <h4>Analisis Statistik OSN</h4>
-            <p>Aplikasi ini dibuat untuk menganalisis data statistik hasil Olimpiade Sains Nasional (OSN) dari berbagai bidang.</p>
-            
-            <h5 class="mt-4">Fitur Utama:</h5>
+            <p>Aplikasi ini dibuat untuk memenuhi tugas Project Probabilitas dan Statistika. Aplikasi ini memiliki fitur-fitur:</p>
             <ul>
-                <li>Analisis data statistik untuk setiap bidang OSN</li>
-                <li>Visualisasi data dalam bentuk berbagai grafik</li>
-                <li>Perbandingan statistik antar bidang</li>
-                <li>Pengelolaan data peserta</li>
+                <li>Visualisasi data menggunakan berbagai jenis grafik (Radar Chart, Box Plot, Histogram, Stem and Leaf Plot)</li>
+                <li>Perhitungan statistik dasar (mean, median, modus, standar deviasi, dll)</li>
+                <li>Analisis distribusi data</li>
+                <li>Penerapan konsep probabilitas</li>
+                <li>Manajemen data peserta olimpiade</li>
             </ul>
-            
-            <h5 class="mt-4">Analisis yang Tersedia:</h5>
-            <ul>
-                <li>Statistik dasar (mean, median, modus, dll)</li>
-                <li>Distribusi frekuensi</li>
-                <li>Visualisasi data:
-                    <ul>
-                        <li>Stem and Leaf Plot</li>
-                        <li>Histogram</li>
-                        <li>Box Plot</li>
-                        <li>Radar Chart (untuk perbandingan)</li>
+        </div>
+    </div>
+
+    <!-- Portofolio Anggota Kelompok -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-users me-2"></i>Anggota Kelompok</h5>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-2 text-center">
+                    <img src="/static/foto/Rifky.jpg" class="rounded-circle img-fluid mb-3" style="width: 150px; height: 150px; object-fit: cover;" alt="Rifky">
+                </div>
+                <div class="col-md-10 d-flex align-items-center">
+                    <div>
+                        <h5>Rifky Dwi Rahmat Prakoso</h5>
+                        <p class="mb-2">NIM: H1D024001</p>
+                        <p class="mb-2">
+                            <i class="fab fa-instagram me-2"></i>
+                            <a href="https://instagram.com/rifky.prakoso_" target="_blank" class="text-decoration-none">@rifky.prakoso_</a>
+                        </p>
+                        <p class="fst-italic">"Kode boleh salah, semangat jangan patah."</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-2 text-center">
+                    <img src="/static/foto/Astria.jpg" class="rounded-circle img-fluid mb-3" style="width: 150px; height: 150px; object-fit: cover;" alt="Astria">
+                </div>
+                <div class="col-md-10 d-flex align-items-center">
+                    <div>
+                        <h5>Astria Dina Fitri</h5>
+                        <p class="mb-2">NIM: H1D024004</p>
+                        <p class="mb-2">
+                            <i class="fab fa-instagram me-2"></i>
+                            <a href="https://instagram.com/df.astriiaa" target="_blank" class="text-decoration-none">@df.astriiaa</a>
+                        </p>
+                        <p class="fst-italic">"hidup kadang kidding, dikit-dikit ngoding."</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-2 text-center">
+                    <img src="/static/foto/Wakhid.jpg" class="rounded-circle img-fluid mb-3" style="width: 150px; height: 150px; object-fit: cover;" alt="Wakhid">
+                </div>
+                <div class="col-md-10 d-flex align-items-center">
+                    <div>
+                        <h5>Wakhid Nugroho</h5>
+                        <p class="mb-2">NIM: H1D024003</p>
+                        <p class="mb-2">
+                            <i class="fab fa-instagram me-2"></i>
+                            <a href="https://instagram.com/wkhidngrh" target="_blank" class="text-decoration-none">@wkhidngrh</a>
+                        </p>
+                        <p class="fst-italic">"Jangan takut gagal, server down aja bisa di-restart"</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Teknologi yang Digunakan -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-laptop-code me-2"></i>Teknologi yang Digunakan</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <h6><i class="fab fa-python me-2"></i>Backend</h6>
+                    <ul class="list-unstyled">
+                        <li>Python</li>
+                        <li>Flask</li>
+                        <li>Supabase</li>
                     </ul>
-                </li>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <h6><i class="fab fa-js me-2"></i>Frontend</h6>
+                    <ul class="list-unstyled">
+                        <li>HTML5</li>
+                        <li>CSS3</li>
+                        <li>JavaScript</li>
+                        <li>Bootstrap 5</li>
+                        <li>Chart.js</li>
+                    </ul>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <h6><i class="fas fa-tools me-2"></i>Tools</h6>
+                    <ul class="list-unstyled">
+                        <li>Git</li>
+                        <li>Visual Studio Code</li>
+                        <li>GitHub</li>
             </ul>
-            
-            <h5 class="mt-4">Pengembang:</h5>
-            <p>Aplikasi ini dikembangkan sebagai bagian dari proyek Probabilitas dan Statistika.</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>

@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>Admin Dashboard</h2>
+        <h2>Admin Dashboard</h2>
     
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -11,7 +11,7 @@
             {% endfor %}
         {% endif %}
     {% endwith %}
-    
+
     <!-- Import CSV Section -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
@@ -52,27 +52,32 @@
             </a>
         </div>
         <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
                             <th>Kode</th>
                             <th>Nama Bidang</th>
                             <th>Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                </tr>
+            </thead>
+            <tbody>
                         {% for key, value in subjects.items() %}
                         <tr>
                             <td>{{ key }}</td>
                             <td>{{ value }}</td>
-                            <td>
-                                <form method="POST" action="{{ url_for('delete_subject', subject_key=key) }}" class="d-inline">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Apakah Anda yakin ingin menghapus bidang ini?')">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </form>
+                            <td class="text-center">
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('edit_subject', subject_key=key) }}" class="btn btn-warning btn-sm me-1" title="Edit">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </a>
+                                    <form method="POST" action="{{ url_for('delete_subject', subject_key=key) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Apakah Anda yakin ingin menghapus bidang ini?')" title="Hapus">
+                                            <i class="fas fa-trash"></i> Hapus
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
@@ -124,6 +129,46 @@
         </div>
     </div>
     
+    <!-- Search and Filter Section -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-search me-2"></i>Cari dan Filter Peserta</h5>
+        </div>
+        <div class="card-body">
+            <form id="searchForm" class="row g-3">
+                <div class="col-md-3">
+                    <label for="searchName" class="form-label">Nama Peserta</label>
+                    <input type="text" class="form-control" id="searchName" placeholder="Cari nama...">
+                </div>
+                <div class="col-md-3">
+                    <label for="filterSchool" class="form-label">Sekolah</label>
+                    <input type="text" class="form-control" id="filterSchool" placeholder="Filter sekolah...">
+                </div>
+                <div class="col-md-3">
+                    <label for="filterProvince" class="form-label">Provinsi</label>
+                    <input type="text" class="form-control" id="filterProvince" placeholder="Filter provinsi...">
+                </div>
+                <div class="col-md-3">
+                    <label for="filterSubject" class="form-label">Bidang</label>
+                    <select class="form-select" id="filterSubject">
+                        <option value="">Semua Bidang</option>
+                        {% for key, value in subjects.items() %}
+                        <option value="{{ value }}">{{ value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12">
+                    <button type="button" class="btn btn-primary" onclick="applyFilters()">
+                        <i class="fas fa-search me-2"></i>Cari
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="resetFilters()">
+                        <i class="fas fa-undo me-2"></i>Reset
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Participants List -->
     <div class="card">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
@@ -151,8 +196,8 @@
                         </tr>
                     </thead>
                     <tbody id="participantsTable">
-                        {% for participant in participants %}
-                        <tr>
+                {% for participant in participants %}
+                <tr>
                             <td>
                                 <div class="form-check">
                                     <input class="form-check-input participant-checkbox" type="checkbox" value="{{ participant.id }}" onchange="updateDeleteButton()">
@@ -161,25 +206,27 @@
                             <td>{{ participant.name }}</td>
                             <td>{{ participant.school }}</td>
                             <td>{{ participant.province }}</td>
-                            <td>{{ participant.subject }}</td>
+                            <td>{{ subjects[participant.subject] }}</td>
                             <td>{{ "%.2f"|format(participant.score) }}</td>
-                            <td>
-                                <a href="{{ url_for('edit_participant', id=participant.id) }}" class="btn btn-primary btn-sm">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <form method="POST" action="{{ url_for('delete_participant', id=participant.id) }}" class="d-inline">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Apakah Anda yakin ingin menghapus peserta ini?')">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </form>
+                            <td class="text-center">
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('edit_participant', id=participant.id) }}" class="btn btn-warning btn-sm me-1" title="Edit">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </a>
+                                    <form method="POST" action="{{ url_for('delete_participant', id=participant.id) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Apakah Anda yakin ingin menghapus peserta ini?')" title="Hapus">
+                                            <i class="fas fa-trash"></i> Hapus
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
     </div>
 </div>
 
@@ -295,6 +342,39 @@
             document.body.appendChild(form);
             form.submit();
         }
+    }
+
+    function applyFilters() {
+        const searchName = document.getElementById('searchName').value.toLowerCase();
+        const filterSchool = document.getElementById('filterSchool').value.toLowerCase();
+        const filterProvince = document.getElementById('filterProvince').value.toLowerCase();
+        const filterSubject = document.getElementById('filterSubject').value;
+        
+        const rows = document.querySelectorAll('#participantsTable tr');
+        
+        rows.forEach(row => {
+            const name = row.cells[1]?.textContent.toLowerCase() || '';
+            const school = row.cells[2]?.textContent.toLowerCase() || '';
+            const province = row.cells[3]?.textContent.toLowerCase() || '';
+            const subject = row.cells[4]?.textContent || '';
+            
+            const matchName = name.includes(searchName);
+            const matchSchool = school.includes(filterSchool);
+            const matchProvince = province.includes(filterProvince);
+            const matchSubject = !filterSubject || subject === filterSubject;
+            
+            if (matchName && matchSchool && matchProvince && matchSubject) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    function resetFilters() {
+        document.getElementById('searchForm').reset();
+        const rows = document.querySelectorAll('#participantsTable tr');
+        rows.forEach(row => row.style.display = '');
     }
 </script>
 {% endblock %} 
