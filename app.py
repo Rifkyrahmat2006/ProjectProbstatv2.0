@@ -13,6 +13,7 @@ from supabase import create_client, Client
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import json
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Load environment variables
 load_dotenv()
@@ -39,6 +40,9 @@ db.init_app(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+# Add after app initialization
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -848,7 +852,6 @@ def edit_subject(subject_key):
     return render_template('edit_subject.html', subject={'code': subject_key, 'name': SUBJECTS[subject_key]})
 
 if __name__ == '__main__':
-    app.run()
-
-# Add WSGI handler for serverless
-app = app
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+else:
+    app = app

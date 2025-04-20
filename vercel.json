@@ -3,7 +3,11 @@
     "builds": [
         {
             "src": "app.py",
-            "use": "@vercel/python"
+            "use": "@vercel/python",
+            "config": {
+                "maxLambdaSize": "15mb",
+                "runtime": "python3.9"
+            }
         }
     ],
     "routes": [
@@ -13,8 +17,9 @@
         }
     ],
     "env": {
-        "SUPABASE_URL": "https://akhgswoguvgkfueibxed.supabase.co",
-        "SUPABASE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFraGdzd29ndXZna2Z1ZWlieGVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUwNjY3MzYsImV4cCI6MjA2MDY0MjczNn0.G1gG7HFqMRFKnizAX-QyOWHYBNFeg0-HxUS64BrHBnA",
-        "SECRET_KEY": "3da440d6050e223aa0d3883def14c34b314faac792eda4dd12ed27020084a768"
+        "SUPABASE_URL": "https://xqjvxwqjvxwqjvxwqjvx.supabase.co",
+        "SUPABASE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhxanZ4d3FqdnF3cWp2eHdxanYiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTczOTY5NjY5OSwiZXhwIjoyMDU1Mjc2Njk5fQ.2QZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQ",
+        "FLASK_ENV": "production",
+        "FLASK_APP": "app.py"
     }
 }
