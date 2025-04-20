@@ -190,11 +190,11 @@ def edit_participant(id):
         response = supabase.table('participants').select('*').eq('id', id).execute()
         participant = response.data[0] if response.data else None
         
-        if not participant:
+    if not participant:
             flash('Participant not found', 'error')
             return redirect(url_for('admin_dashboard'))
-        
-        if request.method == 'POST':
+    
+    if request.method == 'POST':
             updated_participant = {
                 'name': request.form.get('nama'),
                 'school': request.form.get('sekolah'),
@@ -212,11 +212,11 @@ def edit_participant(id):
                 flash('Error saving data', 'error')
         
         return render_template('edit_participant.html', participant=participant)
-    except Exception as e:
+        except Exception as e:
         print(f"Error reading participant: {str(e)}")
         flash('Error reading data', 'error')
         return redirect(url_for('admin_dashboard'))
-
+    
 @app.route('/admin/participant/<int:id>/delete', methods=['GET', 'POST'])
 @login_required
 def delete_participant(id):
@@ -264,7 +264,7 @@ def get_subject_data(data, subject):
     """Get data for specific subject"""
     subject_data = []
     for row in data:
-        subject_data.append({
+                subject_data.append({
             'name': row[0],
             'school': row[1],
             'province': row[2],
@@ -426,7 +426,7 @@ def home():
         # Calculate statistics
         statistics = calculate_statistics(participants)
         
-        return render_template('home.html', 
+        return render_template('home.html',
                              participants=participants,
                              statistics=statistics,
                              subjects=SUBJECTS,
@@ -434,7 +434,7 @@ def home():
     except Exception as e:
         print(f"Error in home route: {str(e)}")
         flash(f'Error: {str(e)}', 'danger')
-        return render_template('home.html', 
+        return render_template('home.html',
                              participants=[],
                              statistics={},
                              subjects=SUBJECTS,
