@@ -11,11 +11,5 @@
             "src": "/(.*)",
             "dest": "app.py"
         }
-    ],
-    "env": {
-        "SUPABASE_URL": "https://xqjvxwqjvxwqjvxwqjvx.supabase.co",
-        "SUPABASE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhxanZ4d3FqdnF3cWp2eHdxanYiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTczOTY5NjY5OSwiZXhwIjoyMDU1Mjc2Njk5fQ.2QZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQ",
-        "FLASK_ENV": "production",
-        "FLASK_APP": "app.py"
-    }
+    ]
 }
