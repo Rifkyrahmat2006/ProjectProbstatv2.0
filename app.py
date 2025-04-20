@@ -201,11 +201,11 @@ def edit_participant(id):
         response = supabase.table('participants').select('*').eq('id', id).execute()
         participant = response.data[0] if response.data else None
         
-    if not participant:
+        if not participant:
             flash('Participant not found', 'error')
             return redirect(url_for('admin_dashboard'))
-    
-    if request.method == 'POST':
+        
+        if request.method == 'POST':
             updated_participant = {
                 'name': request.form.get('nama'),
                 'school': request.form.get('sekolah'),
@@ -222,12 +222,12 @@ def edit_participant(id):
                 print(f"Error updating participant: {str(e)}")
                 flash('Error saving data', 'error')
         
-        return render_template('edit_participant.html', participant=participant)
-        except Exception as e:
+        return render_template('edit_participant.html', participant=participant, subjects=SUBJECTS)
+    except Exception as e:
         print(f"Error reading participant: {str(e)}")
         flash('Error reading data', 'error')
         return redirect(url_for('admin_dashboard'))
-    
+
 @app.route('/admin/participant/<int:id>/delete', methods=['GET', 'POST'])
 @login_required
 def delete_participant(id):
@@ -273,19 +273,159 @@ def read_csv_data(subject):
 
 def get_subject_data(data, subject):
     """Get data for specific subject"""
-    subject_data = []
-    for row in data:
+    try:
+        subject_data = []
+        for row in data:
+            if isinstance(row, dict):
                 subject_data.append({
-            'name': row[0],
-            'school': row[1],
-            'province': row[2],
-            'score': float(row[3])
-        })
-    return subject_data
+                    'name': row.get('name', ''),
+                    'school': row.get('school', ''),
+                    'province': row.get('province', ''),
+                    'score': float(row.get('score', 0))
+                })
+        return subject_data
+    except Exception as e:
+        print(f"Error in get_subject_data: {str(e)}")
+        return []
 
 def calculate_statistics(participants):
     """Calculate statistics for the given participants"""
-    if not participants:
+    try:
+        if not participants:
+            return {
+                'n': 0,
+                'sorted_data': [],
+                'min': 0,
+                'max': 0,
+                'mean': 0,
+                'median': 0,
+                'std_dev': 0,
+                'q1': 0,
+                'q3': 0,
+                'mode': 0,
+                'frequency_distribution': []
+            }
+        
+        # Extract and sort scores
+        scores = []
+        for p in participants:
+            try:
+                score = float(p['score'])
+                if not math.isnan(score) and not math.isinf(score):
+                    scores.append(score)
+            except (ValueError, TypeError, KeyError):
+                continue
+        
+        if not scores:
+            return {
+                'n': 0,
+                'sorted_data': [],
+                'min': 0,
+                'max': 0,
+                'mean': 0,
+                'median': 0,
+                'std_dev': 0,
+                'q1': 0,
+                'q3': 0,
+                'mode': 0,
+                'frequency_distribution': []
+            }
+            
+        scores.sort()
+        
+        # Basic statistics
+        n = len(scores)
+        min_score = min(scores)
+        max_score = max(scores)
+        mean = sum(scores) / n
+        
+        # Median calculation
+        if n % 2 == 0:
+            median = (scores[n//2 - 1] + scores[n//2]) / 2
+        else:
+            median = scores[n//2]
+        
+        # Quartiles calculation
+        def get_quartile(sorted_data, q):
+            n = len(sorted_data)
+            pos = (n - 1) * q
+            floor = math.floor(pos)
+            ceil = math.ceil(pos)
+            
+            if floor == ceil:
+                return sorted_data[floor]
+            
+            d0 = sorted_data[floor] * (ceil - pos)
+            d1 = sorted_data[ceil] * (pos - floor)
+            return d0 + d1
+        
+        q1 = get_quartile(scores, 0.25)
+        q3 = get_quartile(scores, 0.75)
+        
+        # Standard deviation calculation
+        squared_diff_sum = sum((x - mean) ** 2 for x in scores)
+        std_dev = math.sqrt(squared_diff_sum / (n - 1) if n > 1 else 0)
+        
+        # Mode calculation
+        score_counts = {}
+        for score in scores:
+            score_counts[score] = score_counts.get(score, 0) + 1
+        mode = max(score_counts.items(), key=lambda x: x[1])[0]
+        
+        # Frequency distribution
+        bin_size = (max_score - min_score) / 5 if max_score != min_score else 1
+        frequency_distribution = []
+        cumulative_frequency = 0
+        
+        for i in range(5):
+            start = min_score + (i * bin_size)
+            end = start + bin_size
+            frequency = len([s for s in scores if start <= s < end])
+            cumulative_frequency += frequency
+            relative_frequency = (frequency / n) * 100 if n > 0 else 0
+            
+            frequency_distribution.append({
+                'class_range': f"{start:.1f}-{end:.1f}",
+                'frequency': frequency,
+                'relative_frequency': relative_frequency,
+                'cumulative_frequency': cumulative_frequency
+            })
+        
+        # Calculate variance
+        variance = squared_diff_sum / (n - 1) if n > 1 else 0
+        
+        # Calculate mid-range
+        mid_range = (max_score + min_score) / 2
+        
+        # Calculate range
+        range_value = max_score - min_score
+        
+        # Calculate outliers
+        iqr = q3 - q1
+        lower_bound = q1 - (1.5 * iqr)
+        upper_bound = q3 + (1.5 * iqr)
+        outliers = [x for x in scores if x < lower_bound or x > upper_bound]
+        
+        return {
+            'n': n,
+            'sorted_data': scores,
+            'min': min_score,
+            'max': max_score,
+            'range': range_value,
+            'mean': mean,
+            'median': median,
+            'std_dev': std_dev,
+            'variance': variance,
+            'q1': q1,
+            'q3': q3,
+            'mode': mode,
+            'mid_range': mid_range,
+            'iqr': iqr,
+            'outliers': outliers,
+            'frequency_distribution': frequency_distribution
+        }
+    except Exception as e:
+        print(f"Error in calculate_statistics: {str(e)}")
         return {
             'n': 0,
             'sorted_data': [],
@@ -299,122 +439,47 @@ def calculate_statistics(participants):
             'mode': 0,
             'frequency_distribution': []
         }
-    
-    # Extract and sort scores
-    scores = [float(p['score']) for p in participants]
-    scores.sort()
-    
-    # Basic statistics
-    n = len(scores)
-    min_score = min(scores)
-    max_score = max(scores)
-    mean = sum(scores) / n
-    
-    # Median calculation
-    if n % 2 == 0:
-        median = (scores[n//2 - 1] + scores[n//2]) / 2
-    else:
-        median = scores[n//2]
-    
-    # Quartiles calculation
-    def get_quartile(sorted_data, q):
-        n = len(sorted_data)
-        pos = (n - 1) * q
-        floor = math.floor(pos)
-        ceil = math.ceil(pos)
-        
-        if floor == ceil:
-            return sorted_data[floor]
-        
-        d0 = sorted_data[floor] * (ceil - pos)
-        d1 = sorted_data[ceil] * (pos - floor)
-        return d0 + d1
-    
-    q1 = get_quartile(scores, 0.25)
-    q3 = get_quartile(scores, 0.75)
-    
-    # Standard deviation calculation
-    squared_diff_sum = sum((x - mean) ** 2 for x in scores)
-    std_dev = math.sqrt(squared_diff_sum / (n - 1) if n > 1 else 0)
-    
-    # Mode calculation
-    score_counts = {}
-    for score in scores:
-        score_counts[score] = score_counts.get(score, 0) + 1
-    mode = max(score_counts.items(), key=lambda x: x[1])[0]
-    
-    # Frequency distribution
-    bin_size = (max_score - min_score) / 5 if max_score != min_score else 1
-    frequency_distribution = []
-    cumulative_frequency = 0
-    
-    for i in range(5):
-        start = min_score + (i * bin_size)
-        end = start + bin_size
-        frequency = len([s for s in scores if start <= s < end])
-        cumulative_frequency += frequency
-        relative_frequency = (frequency / n) * 100 if n > 0 else 0
-        
-        frequency_distribution.append({
-            'class_range': f"{start:.1f}-{end:.1f}",
-            'frequency': frequency,
-            'relative_frequency': relative_frequency,
-            'cumulative_frequency': cumulative_frequency
-        })
-    
-    # Calculate variance
-    variance = squared_diff_sum / (n - 1) if n > 1 else 0
-    
-    # Calculate mid-range
-    mid_range = (max_score + min_score) / 2
-    
-    # Calculate range
-    range_value = max_score - min_score
-    
-    # Calculate outliers
-    iqr = q3 - q1
-    lower_bound = q1 - (1.5 * iqr)
-    upper_bound = q3 + (1.5 * iqr)
-    outliers = [x for x in scores if x < lower_bound or x > upper_bound]
-    
-    return {
-        'n': n,
-        'sorted_data': scores,
-        'min': min_score,
-        'max': max_score,
-        'range': range_value,
-        'mean': mean,
-        'median': median,
-        'std_dev': std_dev,
-        'variance': variance,
-        'q1': q1,
-        'q3': q3,
-        'mode': mode,
-        'mid_range': mid_range,
-        'iqr': iqr,
-        'outliers': outliers,
-        'frequency_distribution': frequency_distribution
-    }
 
 @app.route('/')
 def home():
     try:
-        # Get subject from query parameter
+        # Get subject from query parameter, validate it
         subject = request.args.get('subject', 'all')
+        if subject != 'all' and subject not in SUBJECTS:
+            flash('Invalid subject selected', 'warning')
+            subject = 'all'
         
         # Update subjects before rendering
-        update_subjects()
+        try:
+            update_subjects()
+        except Exception as e:
+            app.logger.error(f"Failed to update subjects: {str(e)}")
+            flash('Failed to update subjects list', 'warning')
         
         # Get all participants from Supabase
-        response = supabase.table('participants').select('*').order('score', desc=True).execute()
-        participants = response.data if response.data else []
+        try:
+            response = supabase.table('participants').select('*').order('score', desc=True).execute()
+            participants = response.data if response.data else []
+        except Exception as e:
+            app.logger.error(f"Failed to fetch participants: {str(e)}")
+            flash('Failed to fetch participants data', 'danger')
+            return render_template('home.html',
+                                participants=[],
+                                statistics={},
+                                subjects=SUBJECTS,
+                                current_subject=subject)
         
         # Sort participants by score in descending order
-        participants.sort(key=lambda x: float(x['score']), reverse=True)
+        try:
+            participants.sort(key=lambda x: float(x.get('score', 0)), reverse=True)
+        except ValueError as e:
+            app.logger.error(f"Invalid score value found: {str(e)}")
+            flash('Some participant scores are invalid', 'warning')
+            participants.sort(key=lambda x: float(x.get('score', 0) or 0), reverse=True)
         
         if subject != 'all':
             # Filter participants by subject
-            participants = [p for p in participants if p['subject'] == subject]
+            participants = [p for p in participants if p.get('subject') == subject]
             # Update ranks for filtered participants
             for i, p in enumerate(participants, 1):
                 p['rank'] = i
@@ -425,17 +490,27 @@ def home():
             same_rank_count = 0
             
             for p in participants:
-                score = float(p['score'])
-                if score != current_score:
-                    current_rank += same_rank_count
-                    same_rank_count = 1
-                    current_score = score
-                else:
-                    same_rank_count += 1
-                p['rank'] = current_rank
+                try:
+                    score = float(p.get('score', 0))
+                    if score != current_score:
+                        current_rank += same_rank_count
+                        same_rank_count = 1
+                        current_score = score
+                    else:
+                        same_rank_count += 1
+                    p['rank'] = current_rank
+                except (ValueError, TypeError) as e:
+                    app.logger.error(f"Error calculating rank for participant {p.get('id')}: {str(e)}")
+                    p['rank'] = current_rank
+                    current_rank += 1
         
         # Calculate statistics
-        statistics = calculate_statistics(participants)
+        try:
+            statistics = calculate_statistics(participants)
+        except Exception as e:
+            app.logger.error(f"Failed to calculate statistics: {str(e)}")
+            flash('Failed to calculate statistics', 'warning')
+            statistics = {}
         
         return render_template('home.html',
                              participants=participants,
@@ -443,8 +518,8 @@ def home():
                              subjects=SUBJECTS,
                              current_subject=subject)
     except Exception as e:
-        print(f"Error in home route: {str(e)}")
-        flash(f'Error: {str(e)}', 'danger')
+        app.logger.error(f"Unexpected error in home route: {str(e)}")
+        flash('An unexpected error occurred', 'danger')
         return render_template('home.html',
                              participants=[],
                              statistics={},
@@ -455,34 +530,52 @@ def home():
 def compare():
     try:
         # Update subjects before rendering
-        update_subjects()
+        try:
+            update_subjects()
+        except Exception as e:
+            app.logger.error(f"Failed to update subjects: {str(e)}")
+            flash('Failed to update subjects list', 'warning')
         
         # Get all participants from Supabase
-        response = supabase.table('participants').select('*').execute()
-        all_participants = response.data if response.data else []
+        try:
+            response = supabase.table('participants').select('*').execute()
+            all_participants = response.data if response.data else []
+        except Exception as e:
+            app.logger.error(f"Failed to fetch participants: {str(e)}")
+            flash('Failed to fetch participants data', 'danger')
+            return render_template('compare.html', 
+                                subjects_data={},
+                                subjects=SUBJECTS)
         
         # Group participants by subject
         subjects_data = {}
         for subject in SUBJECTS:
-            # Filter participants by subject
-            participants = [p for p in all_participants if p['subject'] == subject]
-            
-            if participants:
-                # Calculate statistics for the subject
-                stats = calculate_statistics(participants)
-                if stats:
-                    subjects_data[subject] = {
-                        'name': SUBJECTS[subject],
-                        'stats': stats,
-                        'participants': participants
-                    }
+            try:
+                # Filter participants by subject
+                participants = [p for p in all_participants if p.get('subject') == subject]
+                
+                if participants:
+                    # Calculate statistics for the subject
+                    stats = calculate_statistics(participants)
+                    if stats:
+                        subjects_data[subject] = {
+                            'name': SUBJECTS.get(subject, 'Unknown'),
+                            'stats': stats,
+                            'participants': participants
+                        }
+            except Exception as e:
+                app.logger.error(f"Error processing subject {subject}: {str(e)}")
+                continue
+        
+        if not subjects_data:
+            flash('No data available for comparison', 'info')
         
         return render_template('compare.html', 
                              subjects_data=subjects_data,
                              subjects=SUBJECTS)
     except Exception as e:
-        print(f"Error in compare route: {str(e)}")
-        flash(f'Error: {str(e)}', 'danger')
+        app.logger.error(f"Unexpected error in compare route: {str(e)}")
+        flash('An unexpected error occurred', 'danger')
         return render_template('compare.html', 
                              subjects_data={},
                              subjects=SUBJECTS)
@@ -537,81 +630,119 @@ def import_csv():
             })
             
         # Extract subject from filename (format: subject_name.csv)
-        subject = file.filename.split('.')[0].lower()
-        
-        # Read CSV file
-        import csv
-        from io import StringIO
-        
-        # Convert file to string
-        content = file.read().decode('utf-8')
-        csv_data = StringIO(content)
-        reader = csv.reader(csv_data, delimiter=';')
-        
-        # Skip header rows if they exist
         try:
-            next(reader)  # Skip first header
-            next(reader)  # Skip second header
-            next(reader)  # Skip third header
-        except StopIteration:
-            csv_data.seek(0)
-            reader = csv.reader(csv_data, delimiter=';')
-        
-        # First pass: collect all scores to calculate ranks
-        rows_with_scores = []
-        for row in reader:
-            if len(row) >= 5:  # Make sure row has enough columns
+            subject = file.filename.split('.')[0].lower()
+            if subject not in SUBJECTS:
+                return jsonify({
+                    'success': False,
+                    'message': f'Subject "{subject}" not found in registered subjects',
+                    'redirect': url_for('admin_dashboard')
+                })
+        except Exception as e:
+            app.logger.error(f"Error extracting subject from filename: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'Invalid filename format',
+                'redirect': url_for('admin_dashboard')
+            })
+            
+        # Read CSV file
+        try:
+            import csv
+            from io import StringIO
+            
+            # Convert file to string and detect encoding
+            try:
+                content = file.read().decode('utf-8')
+            except UnicodeDecodeError:
                 try:
-                    score = float(row[4].replace(',', '.'))
-                    rows_with_scores.append({
-                        'name': row[1],
-                        'school': row[2],
-                        'province': row[3],
-                        'score': score,
-                        'subject': subject
+                    file.seek(0)
+                    content = file.read().decode('latin-1')
+                except Exception as e:
+                    app.logger.error(f"Failed to decode file: {str(e)}")
+                    return jsonify({
+                        'success': False,
+                        'message': 'File encoding not supported',
+                        'redirect': url_for('admin_dashboard')
                     })
+            
+            csv_data = StringIO(content)
+            reader = csv.reader(csv_data, delimiter=';')
+            
+            # Skip header rows if they exist
+            try:
+                next(reader)  # Skip first header
+                next(reader)  # Skip second header
+                next(reader)  # Skip third header
+            except StopIteration:
+                return jsonify({
+                    'success': False,
+                    'message': 'File is empty or has invalid format',
+                    'redirect': url_for('admin_dashboard')
+                })
+            
+            # First pass: collect all scores to calculate ranks
+            rows_with_scores = []
+            for row in reader:
+                if len(row) >= 5:  # Make sure row has enough columns
+                    try:
+                        score = float(row[4].replace(',', '.'))
+                        rows_with_scores.append({
+                            'name': row[1],
+                            'school': row[2],
+                            'province': row[3],
+                            'score': score,
+                            'subject': subject
+                        })
+                    except Exception as e:
+                        print(f"Error processing row: {str(e)}")
+                        continue
+            
+            # Sort by score in descending order
+            rows_with_scores.sort(key=lambda x: x['score'], reverse=True)
+            
+            success_count = 0
+            error_count = 0
+            duplicate_count = 0
+            
+            # Check for duplicates and insert into Supabase
+            for rank, row_data in enumerate(rows_with_scores, 1):
+                try:
+                    # Check for duplicates
+                    response = supabase.table('participants').select('*').eq('name', row_data['name']).eq('subject', subject).execute()
+                    
+                    if response.data:
+                        duplicate_count += 1
+                        continue
+                    
+                    # Add rank to the data
+                    row_data['rank'] = rank
+                    
+                    # Insert into Supabase
+                    supabase.table('participants').insert(row_data).execute()
+                    success_count += 1
                 except Exception as e:
                     print(f"Error processing row: {str(e)}")
+                    error_count += 1
                     continue
-        
-        # Sort by score in descending order
-        rows_with_scores.sort(key=lambda x: x['score'], reverse=True)
-        
-        success_count = 0
-        error_count = 0
-        duplicate_count = 0
-        
-        # Check for duplicates and insert into Supabase
-        for rank, row_data in enumerate(rows_with_scores, 1):
-            try:
-                # Check for duplicates
-                response = supabase.table('participants').select('*').eq('name', row_data['name']).eq('subject', subject).execute()
-                
-                if response.data:
-                    duplicate_count += 1
-                    continue
-                
-                # Add rank to the data
-                row_data['rank'] = rank
-                
-                # Insert into Supabase
-                supabase.table('participants').insert(row_data).execute()
-                success_count += 1
-            except Exception as e:
-                print(f"Error processing row: {str(e)}")
-                error_count += 1
-                continue
-        
-        # Update subjects dictionary
-        update_subjects()
-        
-        message = f'Berhasil mengimpor {success_count} data ke bidang {subject}. {duplicate_count} data duplikat ditemukan. {error_count} data gagal diimpor.' if success_count > 0 else 'Tidak ada data yang berhasil diimpor'
-        
-        return jsonify({
-            'success': True,
-            'message': message,
-            'redirect': url_for('admin_dashboard')
-        })
+            
+            # Update subjects dictionary
+            update_subjects()
+            
+            message = f'Berhasil mengimpor {success_count} data ke bidang {subject}. {duplicate_count} data duplikat ditemukan. {error_count} data gagal diimpor.' if success_count > 0 else 'Tidak ada data yang berhasil diimpor'
+            
+            return jsonify({
+                'success': True,
+                'message': message,
+                'redirect': url_for('admin_dashboard')
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'message': str(e),
+                'redirect': url_for('admin_dashboard')
+            })
         
     except Exception as e:
         return jsonify({
@@ -717,4 +848,7 @@ def edit_subject(subject_key):
     return render_template('edit_subject.html', subject={'code': subject_key, 'name': SUBJECTS[subject_key]})
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+    app.run()
+
+# Add WSGI handler for serverless
+app = app
