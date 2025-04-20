@@ -10,6 +10,9 @@ from models import db, User, Participant
 from dotenv import load_dotenv
 import os
 from supabase import create_client, Client
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
+import json
 
 # Load environment variables
 load_dotenv()
@@ -24,6 +27,10 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '3da440d6050e223aa0d3883def14c34b314faac792eda4dd12ed27020084a768')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30 minutes
 
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
@@ -37,25 +44,44 @@ login_manager.login_view = 'login'
 def load_user(user_id):
     return User.get(user_id)
 
+# Custom login_required decorator
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Please login first.', 'error')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '').strip()
+        username = request.form.get('username')
+        password = request.form.get('password')
         
-        user = User.authenticate(username, password)
-        if user:
-            login_user(user)
-            return redirect(url_for('home'))
+        try:
+            # Check user credentials in Supabase
+            response = supabase.table('users').select('*').eq('username', username).execute()
+            
+            if response.data and check_password_hash(response.data[0]['password'], password):
+                session['user_id'] = response.data[0]['id']
+                session['username'] = username
+                session.permanent = True
+                flash('Login successful!', 'success')
+                return redirect(url_for('admin_dashboard'))
+            else:
+                flash('Invalid username or password', 'error')
+        except Exception as e:
+            print(f"Login error: {str(e)}")
+            flash('Error during login', 'error')
         
-        flash('Invalid username or password', 'error')
-    
     return render_template('login.html')
 
 @app.route('/logout')
-@login_required
 def logout():
-    logout_user()
+    session.clear()
+    flash('You have been logged out.', 'info')
     return redirect(url_for('home'))
 
 def get_users():
@@ -86,47 +112,32 @@ def save_users(users):
         print(f"Error saving users: {str(e)}")
         raise
 
-# Dictionary untuk mapping kode bidang ke nama lengkap
+# Dictionary of subjects (will be managed in Supabase)
 SUBJECTS = {}
 
 def update_subjects():
-    """Update SUBJECTS dictionary from existing data"""
+    """Update subjects from Supabase"""
     try:
-        response = supabase.table('participants').select('subject').execute()
+        response = supabase.table('subjects').select('*').execute()
         if response.data:
-            # Get unique subjects
-            subjects = set(participant['subject'] for participant in response.data)
-            # Update SUBJECTS dictionary
-            for subject in subjects:
-                if subject not in SUBJECTS:
-                    # Convert subject code to proper name
-                    name = subject.capitalize()
-                    SUBJECTS[subject] = name
+            SUBJECTS.clear()
+            for subject in response.data:
+                SUBJECTS[subject['code']] = subject['name']
     except Exception as e:
         print(f"Error updating subjects: {str(e)}")
-
-# Initialize subjects at startup
-update_subjects()
 
 @app.route('/admin')
 @login_required
 def admin_dashboard():
     try:
-        # Update subjects before rendering
         update_subjects()
-        
-        # Get all participants from Supabase
         response = supabase.table('participants').select('*').execute()
+        participants = response.data if response.data else []
+        participants.sort(key=lambda x: (-float(x['score']), x['name']))
         
-        if not response.data:
-            return render_template('admin_dashboard.html', participants=[], subjects=SUBJECTS)
-            
-        participants = response.data
-        
-        # Sort participants by score in descending order for each subject
-        participants.sort(key=lambda x: (x['subject'], -float(x['score'])))
-        
-        return render_template('admin_dashboard.html', participants=participants, subjects=SUBJECTS)
+        return render_template('admin_dashboard.html', 
+                             participants=participants,
+                             subjects=SUBJECTS)
     except Exception as e:
         print(f"Error in admin_dashboard: {str(e)}")
         flash(f'Error: {str(e)}', 'danger')
