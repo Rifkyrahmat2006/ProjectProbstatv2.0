@@ -16,12 +16,12 @@ load_dotenv()
 
 # Initialize Supabase client
 supabase: Client = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_KEY")
+    os.getenv('SUPABASE_URL', 'https://akhgswoguvgkfueibxed.supabase.co'),
+    os.getenv('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFraGdzd29ndXZna2Z1ZWlieGVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUwNjY3MzYsImV4cCI6MjA2MDY0MjczNn0.G1gG7HFqMRFKnizAX-QyOWHYBNFeg0-HxUS64BrHBnA')
 )
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key'  # Change this to a secure secret key
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '3da440d6050e223aa0d3883def14c34b314faac792eda4dd12ed27020084a768')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
